@@ -1,6 +1,11 @@
-# CryptBot
-A very simple Starcraft AI Bot
+# YoBot
 
-This should be an example for how to use the LadderManager bots.
+A very simple Starcraft 2 AI Bot
 
-Cryptbotmain.cpp contains exactly how you should reference the bot for use with the LadderManager
+The bot itself lives in YoBot.h
+
+It does a dirty 5 gate rush zealot.
+
+Based on files of CryptBot ladder example, see https://github.com/Cryptyc/CryptBot
+
+This bot is meant to compete in the sc2ai ladder competition : https://www.sc2ai.net/
