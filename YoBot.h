@@ -346,55 +346,10 @@ private:
 
 			} else {
 				// make sure our first pylon has plenty of space around it
-				Point2D candidate;
-				if (true) {
-					candidate = proxy;
-					Actions()->UnitCommand(unit_to_build,
-						ABILITY_ID::BUILD_PYLON, candidate);
-					return true;
-				}
-				candidate = Point2D(proxy.x + rx * 15.0f, proxy.y + ry * 15.0f);
-				bool good = false;
-				int iter = 0;
-				while (!good && iter++ < 10){
-					
-					std::vector<sc2::QueryInterface::PlacementQuery> queries;
-					queries.reserve(5);
-					queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate));
-					queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate + sc2::Point2D(2, 0)));
-					queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate + sc2::Point2D(0, 2)));
-					queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate + sc2::Point2D(-2, 0)));
-					queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate + sc2::Point2D(0, -2)));
-
-					auto q = Query();
-					auto resp = q->Placement(queries);
-
-					int spaces = 0;
-					if (resp[0]) {
-						for (auto & b : resp) {
-							if (b) {
-								spaces++;
-							}
-						}
-					}
-					if (spaces >= 3) {
-						good = true;
-					} else {
-						candidate = Point2D(proxy.x + rx * 15.0f, proxy.y + ry * 15.0f); 						
-					}
-				}
-				if (good) {
-					Actions()->UnitCommand(unit_to_build,
-						ABILITY_ID::BUILD_PYLON, candidate);
-					return true;
-				}
+				Point2D candidate = proxy;
+				Actions()->UnitCommand(unit_to_build,ABILITY_ID::BUILD_PYLON, candidate);
+				return true;
 			}
-
-
-			Actions()->UnitCommand(unit_to_build,
-				ABILITY_ID::BUILD_PYLON,
-				Point2D(proxy.x + rx * 8.0f, proxy.y + ry * 8.0f));
-
 		}
 		return true;
 	}
