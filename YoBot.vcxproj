@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{ACB84C42-74FB-418C-BC59-6EED4AEB2AC2}</ProjectGuid>
-    <RootNamespace>CryptBot</RootNamespace>
+    <RootNamespace>YoBot</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
     <ProjectName>YoBot</ProjectName>
   </PropertyGroup>
