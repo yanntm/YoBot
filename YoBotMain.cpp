@@ -11,6 +11,7 @@
 int main(int argc, char* argv[])
 {
 	YoBot bot;
+	YoBot bot2;
 	sc2::Coordinator coordinator;
 	if (!coordinator.LoadSettings(argc, argv))
 	{
@@ -21,19 +22,26 @@ int main(int argc, char* argv[])
 	coordinator.SetRealtime(false);
 	coordinator.SetMultithreaded(true);
 	coordinator.SetParticipants({
-		CreateParticipant(sc2::Race::Protoss, &bot),
+		CreateParticipant(sc2::Race::Protoss, &bot),CreateParticipant(sc2::Race::Protoss, &bot2)
 		//sc2::PlayerSetup(sc2::PlayerType::Observer,Util::GetRaceFromString(enemyRaceString)),
-		CreateComputer(sc2::Race::Terran, sc2::Difficulty::CheatInsane)
+		//CreateComputer(sc2::Race::Terran, sc2::Difficulty::VeryHard)
 	});
 	// Start the game.
 	coordinator.LaunchStarcraft();
+	//auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\AcidPlantLE.SC2Map"; // "AcidPlant LE";  //"Interloper LE""16-Bit LE"
+	 auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\Redshift.SC2Map";
+	// auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\LostAndFoundLE.SC2Map";
 	//coordinator.StartGame("C:/Program Files (x86)/StarCraft II/Maps/InterloperLE.SC2Map");
-	//coordinator.StartGame("Interloper LE");
-	coordinator.StartGame("16-Bit LE");
-
-	// Step forward the game simulation.
-	while (coordinator.Update())
-	{
+	//coordinator.StartGame();
+	// coordinator.StartGame("16-Bit LE");
+	if (coordinator.StartGame(map)) {
+		// Step forward the game simulation.
+		while (coordinator.Update())
+		{
+		}
+	}
+	else {
+		std::cout << "There was a problem loading the map : " << map << std::endl;
 	}
 }
 #else
