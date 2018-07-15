@@ -1,8 +1,10 @@
-#pragma once
+﻿#pragma once
 #include "sc2api/sc2_interfaces.h"
 #include "sc2api/sc2_agent.h"
 #include "sc2api/sc2_map_info.h"
 #include "sc2lib/sc2_lib.h"
+
+#include <valarray>
 
 //#include "Strategys.h"
 #define DllExport   __declspec( dllexport )  
@@ -27,45 +29,102 @@ public:
 		auto probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 		bob = probes.front();
 
-		expansions = sc2::search::CalculateExpansionLocations(observation, Query());
+		const GameInfo& game_info = Observation()->GetGameInfo();
+		const auto & starts = game_info.start_locations;
+		{
+			expansions = sc2::search::CalculateExpansionLocations(observation, Query());
+			// sometimes we get bad stuff out of here
+			auto min = Observation()->GetGameInfo().playable_min;
+			auto max = Observation()->GetGameInfo().playable_max;
+			remove_if(expansions.begin(), expansions.end(),[min, max](const Point3D & u) { return !(u.x > min.x && u.x < max.x && u.y > min.y && u.y < max.y); });
+
+		}
 
 		// Determine choke and proxy locations
-		const GameInfo& game_info = Observation()->GetGameInfo();
-		const auto & starts = game_info.enemy_start_locations;
-		if (starts.size() > 1) {
-			proxy = cog(starts);
-			auto scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());
-			for (auto loc : starts) {
-				Actions()->UnitCommand(scout, ABILITY_ID::SMART, loc, true);
+		computeMapTopology(starts, expansions);
+
+		auto myStart = Observation()->GetStartLocation();
+		for (int i = 0; i < starts.size(); i++) {
+			if (DistanceSquared2D(starts[i], myStart) < 5.0f) {
+				ourBaseStartLocIndex = i;
 			}
+		}
+		ourBaseExpansionIndex = mainBases[ourBaseStartLocIndex];
+
+
+		if (game_info.enemy_start_locations.size() > 1) {
+			proxy = cog(game_info.enemy_start_locations);
+			scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());
+			// return minerals
+			Actions()->UnitCommand(scout, ABILITY_ID::SMART, nexus, true);
+			Actions()->UnitCommand(scout, ABILITY_ID::SMART, game_info.enemy_start_locations[0], true);
+			scouted = 0;
 			target = proxy;
 		}
 		else {
 			target = game_info.enemy_start_locations.front();
-			proxy = (.67 * target + .33*nexus->pos);
+
+			if (ourBaseStartLocIndex == 0) {
+				proxy = expansions[proxyBases[1]];
+			}
+			else {
+				proxy = expansions[proxyBases[0]];
+			}
+
+			//proxy = (.67 * target + .33*nexus->pos);
 			//proxy = FindFarthestBase(nexus->pos,target);
-			proxy = FindNearestBase(proxy);
+			//proxy = FindNearestBase(proxy);
 		}
 
-
+		baseRazed = false;
 
 		//if (game_info.)
-		choke = (.2 * target + .8*nexus->pos);
+		choke = (.2f * target + .8f*nexus->pos);
 
 		Actions()->UnitCommand(bob, ABILITY_ID::SMART, proxy);
+
+#ifdef DEBUG
+		{
+			int i = 0;
+			for (const auto & e : expansions) {
+				Debug()->DebugSphereOut(e + Point3D(0, 0, 0.1f), 2.25f, Colors::Red);
+				std::string text = "expo" + std::to_string(i++);
+				Debug()->DebugTextOut(text, sc2::Point3D(e.x, e.y, e.z + 2), Colors::Green);
+			}
+
+			for (int startloc = 0; startloc < starts.size(); startloc++) {
+				Debug()->DebugTextOut("main" + std::to_string(startloc), expansions[mainBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
+				Debug()->DebugTextOut("nat" + std::to_string(startloc), expansions[naturalBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
+				if (pocketBases[startloc] != -1) Debug()->DebugTextOut("pocket" + std::to_string(startloc), expansions[pocketBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
+				Debug()->DebugTextOut("proxy" + std::to_string(startloc), expansions[proxyBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
+			}
+
+			Debug()->SendDebug();
+		}
+#endif // DEBUG
 	}
 
 
 	virtual void OnUnitHasAttacked(const Unit* unit) final {
 
+
 		if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
-			auto targets = FindEnemiesInRange(unit->pos, 100);
+			auto targets = FindEnemiesInRange(unit->pos, 10);
+
+			bool isToss = true;
+			for (auto r : Observation()->GetGameInfo().player_info) {
+				if (r.race_requested != Protoss) {
+					isToss = false;
+					break;
+				}
+			}
 
 			Units weak;
 			Units drones;
 			Units pylons;
+
 			for (auto t : targets) {
-				if ((t->health + t->shield) / (t->health_max + t->shield_max) < 0.7) {
+				if ((t->health + t->shield) / (t->health_max + t->shield_max) < 0.7  &&  t->build_progress == 1.0f  &&  (!isToss || t->is_powered )) {
 					weak.push_back(t);
 				}
 				if (t->unit_type == UNIT_TYPEID::PROTOSS_PROBE || t->unit_type == UNIT_TYPEID::TERRAN_SCV || t->unit_type == UNIT_TYPEID::ZERG_DRONE) {
@@ -171,6 +230,9 @@ public:
 			else {
 				target = u->pos;
 			}
+			if (scout != nullptr) {
+				OnUnitIdle(scout);
+			}
 		}
 	}
 
@@ -198,6 +260,13 @@ public:
 					Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 				}
 				Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
+			}
+		}
+		else if (unit->alliance == Unit::Alliance::Enemy &&  unit->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER || unit->unit_type == UNIT_TYPEID::TERRAN_ORBITALCOMMAND || unit->unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS ||
+			unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS ||
+			unit->unit_type == UNIT_TYPEID::ZERG_HATCHERY || unit->unit_type == UNIT_TYPEID::ZERG_LAIR || unit->unit_type == UNIT_TYPEID::ZERG_HIVE ) {
+			if (Distance2D(target, unit->pos) < 20) {
+				baseRazed = true;
 			}
 		}
 	}
@@ -254,12 +323,13 @@ public:
 		return targetc;
 	}
 
-	const Point2D FindNearestBase(const Point2D& start) {
+	const Point3D FindNearestBase(const Point3D& start) {
 		float distance = std::numeric_limits<float>::max();
-		Point2D targetb;
+		Point3D targetb;
 		for (const auto& u : expansions) {
 			float d = DistanceSquared2D(u, start);
-			if (d < distance) {
+			float deltaz = abs(start.z - u.z);
+			if (d < distance && deltaz < 1.0f) {
 				distance = d;
 				targetb = u;
 			}
@@ -270,6 +340,23 @@ public:
 	int supplyleft = 0;
 
 	virtual void OnStep() final {
+		
+		if (proxy != target) {
+			if (FindEnemiesInRange(target, 18).empty() && baseRazed) {
+				target = proxy;
+				for (auto z : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
+					OnUnitIdle(z);
+				}
+			}
+		}
+		if (proxy == target) {
+			for (const auto & u : Observation()->GetUnits(Unit::Alliance::Enemy)) {
+				if (u->health_max >= 200) {
+					OnUnitEnterVision(u);
+					break;
+				}
+			}
+		}
 		//		std::cout << Observation()->GetGameLoop() << std::endl;
 		//		std::cout << Observation()->GetMinerals() << std::endl;
 		/*	bool doit = false;
@@ -283,6 +370,11 @@ public:
 		} else {
 		doit = true;
 		}*/
+		//sc2::SleepFor(44);
+
+
+
+
 
 		minerals = Observation()->GetMinerals();
 		supplyleft = Observation()->GetFoodCap() - Observation()->GetFoodUsed();
@@ -330,20 +422,62 @@ public:
 				}
 			}
 		}
-		if (proxy == target) {
-			for (const auto & u : Observation()->GetUnits(Unit::Alliance::Enemy)) {
-				if (u->health_max >= 200) {
-					OnUnitEnterVision(u);
-					break;
-				}
-			}
-		}
+
+		TryImmediateAttack(Observation()->GetUnits(Unit::Alliance::Self, [](const Unit & u) { return u.weapon_cooldown == 0; }));
+		
 
 	}
 
 
+	void TryImmediateAttack(const Units & zeals) {
+		
+		for (const auto & z : zeals) {
+			
+			auto arms = Observation()->GetUnitTypeData().at(static_cast<uint32_t>(z->unit_type)).weapons;
+			if (arms.empty()) {
+				continue;
+			}
+			float attRange = arms.front().range + z->radius;
+			// slight exaggeration is ok
+			attRange *= 1.1f;
+			auto enemies = FindEnemiesInRange(z->pos, attRange);
+			if (!enemies.empty()) {
+				int max = 2000;
+				const Unit * t = nullptr;
+				for (auto nmy : enemies) {
+					float f = nmy->health + nmy->shield;
+					if (f <= max) {
+						t = nmy;
+						max = f;
+					}
+				}
+				Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);				
+			}
+		}
+	}
+
 	// In your bot class.
 	virtual void OnUnitIdle(const Unit* unit) final {
+		if (unit == scout) {
+			
+			if (proxy != target) {
+				Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos),false);
+				scout = nullptr;
+			}
+			else {
+				scouted++;
+				if (scouted == Observation()->GetGameInfo().enemy_start_locations.size() - 1) {	
+					target = Observation()->GetGameInfo().enemy_start_locations[scouted];
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
+					scout = nullptr;
+				}
+				else {
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[scouted], false);
+				}
+			}
+			return;
+		}
+		
 		if (unit == bob) {
 			Actions()->UnitCommand(unit, ABILITY_ID::PATROL, proxy);
 			return;
@@ -386,8 +520,11 @@ private:
 	Point2D proxy;
 	Point2D target;
 	const Unit * bob = nullptr;
+	const Unit * scout = nullptr;
+	int scouted = 0;
 	std::vector<Point3D> expansions;
 	const Unit * nexus = nullptr;
+	bool baseRazed ;
 
 	size_t CountUnitType(UNIT_TYPEID unit_type) {
 		return Observation()->GetUnits(Unit::Alliance::Self, IsUnit(unit_type)).size();
@@ -435,9 +572,7 @@ private:
 		auto potTargets = expansions;
 		for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
 			if (Distance2D(unit->pos, target) < 15.0f) {
-				if (proxy != target) {
-					target = proxy;
-				}
+				
 			}
 			else {
 				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
@@ -696,9 +831,172 @@ private:
 		return true;
 	}
 
-	const Units FindEnemiesInRange(const Point2D& start, double radiusSquared) {
-		Units units = Observation()->GetUnits(Unit::Alliance::Enemy, [start, radiusSquared](const Unit& unit) {
-			return !unit.is_flying && DistanceSquared2D(unit.pos, start)< radiusSquared; });
+	// map "topology" consists in tagging the expansions as being one of the following
+	std::vector<int> mainBases;
+	std::vector<int> pocketBases;
+	std::vector<int> naturalBases;
+	std::vector<int> proxyBases;
+	// each base has a staging area, an open ground to group units before attacking
+	std::vector<Point2D> stagingFor;
+	int ourBaseExpansionIndex;
+	int ourBaseStartLocIndex;
+
+	std::vector<int> sortByDistanceTo(std::valarray<float> matrix, int ti, size_t sz) {
+		std::vector<int> byDist;
+		for (int i = 0; i < sz; i++) {
+			byDist.push_back(i);
+		}
+		std::sort(byDist.begin(), byDist.end(), [matrix, ti, sz](int a, int b) { return matrix[ti*sz + a] < matrix[ti*sz + b]; });
+		return byDist;
+	}
+
+	void computeMapTopology(const std::vector<Point2D> & start_locations, std::vector<Point3D>  expansions) {
+		std::vector <sc2::QueryInterface::PathingQuery> queries;
+		size_t sz = expansions.size();
+				
+		// for the next steps, we want pathing info; targetting the center of a nexus will not work, and moving a bit off center is good.
+		for (auto & p : expansions) {
+			auto min = FindNearestMineralPatch(p);
+			p += (p - min->pos)/2;
+		}
+
+		// create the set of queries 		
+		for (int i = 0; i < sz; i++) {			
+			for (int j = i + 1; j < sz; j++) {
+				queries.push_back({ 0, expansions[i], expansions[j] });
+			}
+		}
+		// send the query and wait for answer
+		std::vector<float> distances = Query()->PathingDistance(queries);
+
+		for (auto & f : distances) {
+			if (f == 0) {
+				f = std::numeric_limits<float>::max();
+			}
+		}
+
+		std::valarray<float> matrix(sz *sz); // no more, no less, than a matrix		
+		auto dit = distances.begin();
+		for (int i = 0 ; i < sz; i++) {
+			// set diagonal to 0
+			matrix[i*sz + i] = 0; 
+			for (int j = i + 1; j < sz; j++, dit++) {
+				matrix[i*sz + j] = * dit;
+				matrix[j*sz + i] = * dit;
+			}
+		}
+
+#ifdef DEBUG
+		for (int i = 0; i < sz; i++) {
+			for (int j = i + 1; j < sz; j++) {
+				auto color = (matrix[i*sz + j] > 100000.0f) ? Colors::Red : Colors::Green;
+				Debug()->DebugLineOut(expansions[i] + Point3D(0, 0, 0.5), expansions[j] + Point3D(0, 0, 0.5), color);
+				Debug()->DebugTextOut(std::to_string(matrix[i*sz + j]), (expansions[i] + Point3D(0, 0, 0.2) + expansions[j]) / 2, Colors::Green);
+			}
+		}
+#endif // DEBUG
+
+
+		
+		// Ok now tag expansion locations 
+		for (int startloc = 0; startloc < start_locations.size(); startloc++) {
+			const auto & sloc = start_locations[startloc];
+			//first find the expansion that is the main base
+			float distance = std::numeric_limits<float>::max();
+			int ti = 0;
+			for (int i = 0; i < sz; i++) {
+				auto d = DistanceSquared2D(sloc, expansions[i]);
+				if (distance > d) {
+					distance = d;
+					ti = i;
+				}
+			}
+			mainBases.push_back(ti);
+		}
+
+		for (int baseIndex = 0; baseIndex < mainBases.size(); baseIndex++) {
+			int ti = mainBases[baseIndex];
+			// next look for the closest bases to this main
+			std::vector<int> byDist = sortByDistanceTo(matrix,ti,sz);
+			
+			int maxCloseBaseIndex=2;
+			float dClosest = matrix[ti*sz + byDist[1]];
+			for (int i = 2; i < sz; i++) {				
+				if (matrix[ti*sz + byDist[i]] > 1.5 * dClosest) {
+					break;
+				}
+				else {
+					maxCloseBaseIndex++;
+				}
+			}
+
+			int nat=byDist[1];
+			int pocket = -1;
+
+			int nmyStart = (baseIndex == 0) ? mainBases[1] : mainBases[0];
+			// are there several nat candidates ?
+			if (maxCloseBaseIndex > 2) {
+				// the first one of these that is closer to enemy base than the main base is a nat
+				for (int i = 1; i < maxCloseBaseIndex; i++) {
+					
+					if (matrix[nmyStart*sz + byDist[i]] < matrix[nmyStart*sz + ti]) {
+						nat = byDist[i];						
+					}
+					else {
+						pocket = byDist[i];
+					}
+				}
+			}
+			naturalBases.push_back(nat);
+			
+			// the one of these two that is closer to our base
+			pocketBases.push_back(pocket);
+			
+			// next look for the closest bases to this nat 
+			std::vector<int> byDistNat = sortByDistanceTo(matrix, nat, sz);
+			std::remove_if(byDistNat.begin(), byDistNat.end(),[nat, pocket, ti](int v) { return v == nat || v==pocket || v==ti; });
+
+			// limit to close bases
+			float dCloseNat = matrix[nat*sz + byDistNat[0]];
+			int tokeep = 1;
+			for (int i = 1; i < sz; i++) {
+				if (matrix[nat*sz + byDistNat[i]] > 1.5 * dCloseNat) {
+					break;
+				}
+				else {
+					tokeep++;
+				}
+			}
+			byDistNat.resize(tokeep);			
+
+
+			int proxy;
+			// choose the one that is furthest from line linking ourBase to his.
+			float distance = 0; 
+			// distance P1P2 for denominator
+			const auto & P1 = expansions[nmyStart];
+			const auto & P2 = expansions[ti];
+			float denom = Distance2D(P1, P2);
+			for (int base : byDistNat) {
+				const auto & X0 = expansions[base];
+				// Equation is straight off of : https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+				float d = std::abs((P2.y - P1.y)*X0.x - (P2.x - P1.x)*X0.y + P2.x*P1.y - P2.y*P1.x) / denom;
+				if (d > distance) {
+					distance = d;
+					proxy = base;
+				}
+			}
+			proxyBases.push_back(proxy);
+			
+		}
+
+
+	}
+
+
+	const Units FindEnemiesInRange(const Point2D& start, float radius) {
+		Units units = Observation()->GetUnits(Unit::Alliance::Enemy, [start, radius](const Unit& unit) {
+			return !unit.is_flying && DistanceSquared2D(unit.pos, start) < pow(radius + unit.radius,2); });
 		return units;
 	}
 
