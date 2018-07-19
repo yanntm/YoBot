@@ -65,12 +65,20 @@ public:
 		}
 		else {
 			target = game_info.enemy_start_locations.front();
-
-			if (ourBaseStartLocIndex == 0) {
-				proxy = expansions[proxyBases[1]];
+			int other = (ourBaseStartLocIndex == 0) ? 1 : 0;
+			int max = 2 ;
+			if (pocketBases[0] != -1) {
+				max = 3;
 			}
-			else {
-				proxy = expansions[proxyBases[0]];
+			int rnd = GetRandomInteger(0, max);
+			if (rnd <= 1) {
+				proxy = expansions[naturalBases[other]];
+			}
+			else if (rnd == 2) {
+				proxy = expansions[proxyBases[other]];				
+			}
+			else if (rnd == 3) {
+				proxy = expansions[pocketBases[other]];
 			}
 
 			//proxy = (.67 * target + .33*nexus->pos);
@@ -109,6 +117,11 @@ public:
 #endif // DEBUG
 	}
 
+	virtual void OnUnitCreated(const Unit* unit) final {
+		if (IsArmyUnitType(unit->unit_type)) {
+			Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, proxy);
+		}
+	}
 
 	virtual void OnUnitHasAttacked(const Unit* unit) final {
 
@@ -157,7 +170,7 @@ public:
 					//std::cout << "Chose a pylon enemy" << std::endl;
 				}
 			}
-			if (enemy != nullptr) {
+			if (enemy != nullptr && enemy->tag != unit->engaged_target_tag) {
 				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, enemy);
 			}
 			/*		if (unit->orders.size() != 0) {
@@ -211,10 +224,13 @@ public:
 					}
 				}
 			}
-			auto close = FindEnemiesInRange(nexus->pos, 5);
+			
+			const auto & tpos = (nexus == nullptr) ? unit->pos : nexus->pos;
+			Units close = FindEnemiesInRange(tpos, 5);
+
 			if (att < 2*close.size() && att <= list.size() *.75f ) {
 				if (bob != nullptr) list.erase(std::remove(list.begin(), list.end(), bob), list.end());
-				auto targets = FindEnemiesInRange(nexus->pos, 6);
+				auto targets = FindEnemiesInRange(tpos, 6);
 
 				//auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
 				auto reaper = FindWeakestUnit(targets);
@@ -247,7 +263,7 @@ public:
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos +v));
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos ));
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos ));
 				}
 			}
 		}
@@ -283,9 +299,16 @@ public:
 				OnUnitIdle(scout);
 			}
 		}
+		if (u->alliance == Unit::Alliance::Enemy) {
+			enemies.insert_or_assign(u->tag,u);
+		}
 	}
 
 	virtual void OnUnitDestroyed(const Unit* unit) final {
+		if (unit->alliance == Unit::Alliance::Enemy) {
+			enemies.erase(unit->tag);
+		}
+		
 		if (bob == unit) {
 			bob = nullptr;
 			for (auto probe : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
@@ -423,6 +446,9 @@ public:
 				Debug()->DebugTextOut("proxy" + std::to_string(startloc), expansions[proxyBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 			}
 
+			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, -2, .5), Colors::Red);
+			Debug()->DebugTextOut("CURtarget", proxy + Point3D(0, 2, .5), Colors::Red);
+
 			for (const auto & u : Observation()->GetUnits(Unit::Alliance::Self)) {
 				if (! u->orders.empty()) {
 					const auto & o = u->orders.front();
@@ -436,7 +462,10 @@ public:
 					else if (o.target_pos.x != 0 && o.target_pos.y != 0) {
 						Debug()->DebugLineOut(u->pos + Point3D(0, 0, 0.2f), Point3D(o.target_pos.x, o.target_pos.y, 15.0f), Colors::Green);
 					}
-				}				
+				}
+				if (u->weapon_cooldown != 0) {
+					Debug()->DebugTextOut("cd" + std::to_string(u->weapon_cooldown), u->pos + Point3D(0, 0, .2), Colors::Green);
+				}
 			}
 			for (const auto & u : Observation()->GetUnits()) {
 				/*
@@ -462,8 +491,11 @@ public:
 				}
 			}
 
+			int enemies = estimateEnemyStrength();
+			Debug()->DebugTextOut("Current enemy :" + std::to_string(enemies));
+			
 			Debug()->SendDebug();
-			sc2::SleepFor(20);
+			//sc2::SleepFor(20);
 
 		}
 #endif
@@ -507,7 +539,17 @@ public:
 		minerals = Observation()->GetMinerals();
 		supplyleft = Observation()->GetFoodCap() - Observation()->GetFoodUsed();
 
-		if (minerals >= 100 && Observation()->GetFoodCap() == 15 && Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PYLON)).empty()) {
+		if (flying != nullptr && minerals >= 1000) {
+			dealWithFlying();
+			if (flystate < 1)
+				minerals -= 550;
+			else if (flystate < 2) 
+				minerals -= 450;
+			else if (flystate < 3)
+				minerals -= 300;
+		} 
+
+		if (minerals >= 100 && Observation()->GetFoodCap() == 15 && Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PYLON)).empty() && nexus != nullptr) {
 			const Unit* min = FindNearestMineralPatch(nexus->pos);
 			auto ptarg = nexus->pos + (nexus->pos - min->pos);
 			auto probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
@@ -533,7 +575,7 @@ public:
 				if (unit->orders.size() == 0) {
 					if (Distance2D(unit->pos, target) < 15.0f) {
 						target = proxy;
-						auto list = Observation()->GetUnits(Unit::Alliance::Enemy);
+						auto list = Observation()->GetUnits(Unit::Alliance::Enemy, [](const auto & u) { return IsBuilding(u.unit_type) && ! u.is_flying; });
 						if (list.size() != 0) {
 							int targetU = GetRandomInteger(0, list.size() - 1);
 							if (!list[targetU]->is_flying) {
@@ -541,8 +583,10 @@ public:
 								continue;
 							}
 						}
-						int targetU = GetRandomInteger(0, expansions.size() - 1);
-						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, expansions[targetU]);
+						if (estimateEnemyStrength() <= 5) {
+							int targetU = GetRandomInteger(0, expansions.size() - 1);
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, expansions[targetU]);
+						}
 					}
 					else {
 						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
@@ -562,13 +606,81 @@ public:
 			}
 		}
 
-		AllocateAttackers();
+//		AllocateAttackers();
 	
 	}
 
 
-	void AllocateAttackers() {
+	void AllocateAttackers(const Point3D & npos) {
+		Units inRange = Observation()->GetUnits([npos](const Unit & u) { return  !u.is_flying && Distance2D(u.pos, npos) < 15.0f; });
+		
+		// indexes go to here
+		Units allUnits;
+		allUnits.reserve(inRange.size());
 
+		// enemies
+		std::vector<int> buildings;
+		std::vector<int> CCs;
+		std::vector<int> drones;
+		std::vector<int> meleeDef;
+		std::vector<int> rangeDef;
+		std::vector<int> staticD;
+
+		// allies
+		std::vector<int> probes;
+		std::vector<int> zeals;
+		for (const auto & u : inRange) {
+			int n = allUnits.size();
+			if (u->alliance == Unit::Alliance::Enemy) {			
+				if (u->unit_type == UNIT_TYPEID::ZERG_EGG || u->unit_type == UNIT_TYPEID::ZERG_BROODLING || u->unit_type == UNIT_TYPEID::ZERG_LARVA) {
+					continue;
+				}
+				if (isStaticDefense(u->unit_type)) {
+					staticD.push_back(n);
+				}
+				else if (IsCommandStructure(u->unit_type)) {
+					CCs.push_back(n);
+				}
+				else if (IsBuilding(u->unit_type)) {
+					buildings.push_back(n);
+				}
+				else if (IsWorkerType(u->unit_type)) {
+					drones.push_back(n);
+				}
+				else if (IsRangedUnit(u->unit_type)) {
+					rangeDef.push_back(n);
+				} 
+				else {
+					// it's a melee unit
+					meleeDef.push_back(n);
+				}
+			}
+			else if (u->alliance == Unit::Alliance::Self) {
+				if (u->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
+					zeals.push_back(n);
+				}
+				else if (u->unit_type == UNIT_TYPEID::PROTOSS_PROBE) {
+					probes.push_back(n);
+				}
+			}
+			allUnits.push_back(u);
+		}
+		
+		// build the distance matrix between units
+		std::vector<Point3D> points;
+		points.reserve(allUnits.size());
+		for (auto u : allUnits) {
+			points.push_back(u->pos);
+		}
+		auto matrix = computeDistanceMatrix(points);
+
+		// std::vector<int> targets = allocateTargets(probes, mins, [](const Unit *u) { return  2; });
+
+/*		for (int att = 0, e = targets.size(); att < e; att++) {
+			if (targets[att] != -1) {
+				Actions()->UnitCommand(probes[att], ABILITY_ID::SMART, mins[targets[att]]);
+			}
+		}*/
 
 
 	}
@@ -760,14 +872,22 @@ public:
 				scout = nullptr;
 			}
 			else {
-				scouted++;
-				if (scouted == Observation()->GetGameInfo().enemy_start_locations.size() - 1) {	
-					target = Observation()->GetGameInfo().enemy_start_locations[scouted];
+				int s = 0;
+				for (const auto & pos : Observation()->GetGameInfo().enemy_start_locations) {
+					auto vis = Observation()->GetVisibility(pos);
+					if (vis == sc2::Visibility::Fogged || vis == sc2::Visibility::Visible) {
+						s++;
+					}
+				}
+
+				//scouted++;
+				if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1) {	
+					target = Observation()->GetGameInfo().enemy_start_locations[s];
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
 					scout = nullptr;
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[scouted], false);
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[s], false);
 				}
 			}
 			return;
@@ -819,7 +939,11 @@ private:
 	int scouted = 0;
 	std::vector<Point3D> expansions;
 	const Unit * nexus = nullptr;
+	const Unit * flying = nullptr;
+	// 0 = nominal, 1=going to, 2=pylon ok, 3=cannon ok, 4=razed
+	int flystate = 0;
 	bool baseRazed ;
+	std::unordered_map<Tag,const Unit *> enemies;
 
 	size_t CountUnitType(UNIT_TYPEID unit_type) {
 		return Observation()->GetUnits(Unit::Alliance::Self, IsUnit(unit_type)).size();
@@ -1150,18 +1274,12 @@ private:
 		return byDist;
 	}
 
-	void computeMapTopology(const std::vector<Point2D> & start_locations, std::vector<Point3D>  expansions) {
+	std::valarray<float> computeDistanceMatrix(const std::vector<Point3D> expansions) {
 		std::vector <sc2::QueryInterface::PathingQuery> queries;
-		size_t sz = expansions.size();
-				
-		// for the next steps, we want pathing info; targetting the center of a nexus will not work, so moving a bit off center is good.
-		for (auto & p : expansions) {
-			auto min = FindNearestMineralPatch(p);
-			p += 0.8f *(p - min->pos);
-		}
-
+		int sz = expansions.size();
+		
 		// create the set of queries 		
-		for (int i = 0; i < sz; i++) {			
+		for (int i = 0; i < sz; i++) {
 			for (int j = i + 1; j < sz; j++) {
 				queries.push_back({ 0, expansions[i], expansions[j] });
 			}
@@ -1177,14 +1295,31 @@ private:
 
 		std::valarray<float> matrix(sz *sz); // no more, no less, than a matrix		
 		auto dit = distances.begin();
-		for (int i = 0 ; i < sz; i++) {
+		for (int i = 0; i < sz; i++) {
 			// set diagonal to 0
-			matrix[i*sz + i] = 0; 
+			matrix[i*sz + i] = 0;
 			for (int j = i + 1; j < sz; j++, dit++) {
-				matrix[i*sz + j] = * dit;
-				matrix[j*sz + i] = * dit;
+				matrix[i*sz + j] = *dit;
+				matrix[j*sz + i] = *dit;
 			}
 		}
+		return matrix;
+	}
+
+	void computeMapTopology(const std::vector<Point2D> & start_locations, std::vector<Point3D>  expansions) {
+		size_t sz = expansions.size();
+				
+		// for the next steps, we want pathing info; targetting the center of a nexus will not work, so moving a bit off center is good.
+		for (auto & p : expansions) {
+			Units closeMins = Observation()->GetUnits(Unit::Alliance::Neutral, [p](const Unit & u) { return  IsMineral(u.unit_type) && Distance2D(u.pos,p) < 10.0f; });
+			sortByDistanceTo(closeMins, p);
+			// take the three closest
+			
+			Point3D cog = (closeMins[0]->pos + closeMins[1]->pos + closeMins[2]->pos + closeMins[3]->pos) / 4 ;
+			p += (p - cog);
+		}
+
+		std::valarray<float> matrix = computeDistanceMatrix(expansions);
 
 #ifdef DEBUG
 		for (int i = 0; i < sz; i++) {
@@ -1293,6 +1428,74 @@ private:
 
 	}
 
+	void dealWithFlying() {
+		if (flying != nullptr && bob != nullptr && (minerals >= 600 || flystate ==2)) {
+			float pylon = 0;
+			float cannon = 0;
+			float forge = 0;
+			const auto & fpos = flying->pos;
+			Observation()->GetUnits(Unit::Alliance::Self, [&pylon,&cannon,&forge,fpos](const Unit &u) { 
+				if (u.unit_type != UNIT_TYPEID::PROTOSS_PYLON  && u.unit_type != UNIT_TYPEID::PROTOSS_PHOTONCANNON && u.unit_type != UNIT_TYPEID::PROTOSS_FORGE) {
+					return false;
+				}
+				if (Distance2D(fpos, u.pos) > 15.0f) { return false; }
+				if (u.unit_type == UNIT_TYPEID::PROTOSS_PYLON)  pylon = u.build_progress; 
+				if (u.unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON)  cannon = u.build_progress;
+				if (u.unit_type == UNIT_TYPEID::PROTOSS_FORGE)  forge = u.build_progress;
+				return true;
+			}
+			);
+			
+			if (flystate == 0 && pylon == 0) {
+				Actions()->UnitCommand(bob, ABILITY_ID::SMART, flying->pos);			
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_PYLON, flying->pos + Point2D(-2, -2));
+				//Actions()->UnitCommand(bob, ABILITY_ID::PATROL, flying->pos,true);				
+			}
+			else if (flystate == 0 && pylon > 0) {
+				flystate = 1;
+			}
+			else if (flystate == 1 && pylon == 1.0f && forge == 0) {
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_FORGE, flying->pos + Point2D(-4, 0));
+				Actions()->UnitCommand(bob, ABILITY_ID::PATROL, flying->pos, true);				
+			}
+			else if (flystate == 1 && forge > 0) {
+				flystate = 2;
+			}
+			else if (flystate == 2 && forge==1.0f && cannon == 0) {
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_PHOTONCANNON, flying->pos + Point2D(2, 0));
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_PHOTONCANNON, flying->pos + Point2D(-2,0),true);
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_PHOTONCANNON, flying->pos + Point2D(0, -2), true);
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_PHOTONCANNON, flying->pos + Point2D(0, 2), true);
+				Actions()->UnitCommand(bob, ABILITY_ID::PATROL, flying->pos, true);				
+			}
+			else if (flystate == 2 && cannon >= 4.0f) {
+				flystate = 3;
+			}			
+		}
+	}
+
+	int estimateEnemyStrength() {
+		int str = 0;
+		for (auto u : enemies) {
+			if (IsArmyUnitType(u.second->unit_type)) {
+				str++;
+			}
+			// still WIP
+			if (false &&  flying == nullptr && u.second->unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTERFLYING) {
+				flying = u.second;
+				dealWithFlying();
+				int freemin = minerals;
+				for (const Unit * gw : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY))) {
+					if (freemin < 400 && ! gw->orders.empty()) {
+						freemin += 100;
+						Actions()->UnitCommand(gw, ABILITY_ID::CANCEL_LAST);
+					}
+				}
+			}				
+		}
+		return str;
+	}
+
 	const Units FindFriendliesInRange(const Point2D& start, float radius) {
 		auto radiuss = pow(radius, 2);
 		Units units = Observation()->GetUnits(Unit::Alliance::Self, [start, radiuss](const Unit& unit) {
@@ -1364,6 +1567,34 @@ private:
 		}
 	}
 
+	static bool isStaticDefense(const sc2::UNIT_TYPEID type) {
+		switch (type)
+		{
+		case sc2::UNIT_TYPEID::ZERG_SPINECRAWLER:
+		case sc2::UNIT_TYPEID::ZERG_SPINECRAWLERUPROOTED:
+		case sc2::UNIT_TYPEID::PROTOSS_PHOTONCANNON:
+		case sc2::UNIT_TYPEID::PROTOSS_SHIELDBATTERY:
+		case sc2::UNIT_TYPEID::TERRAN_BUNKER:
+		case sc2::UNIT_TYPEID::TERRAN_PLANETARYFORTRESS:
+			return true;
+		}
+		return false;
+	}
+
+	static bool IsRangedUnit(const sc2::UNIT_TYPEID type)
+	{
+		switch (type)
+		{
+		case UNIT_TYPEID::TERRAN_MARINE:
+		case UNIT_TYPEID::TERRAN_MARAUDER:
+		case UNIT_TYPEID::PROTOSS_ADEPT:
+		case UNIT_TYPEID::PROTOSS_STALKER:
+		case UNIT_TYPEID::ZERG_ROACH:
+			return true;
+		}
+		return false;
+	}
+
 	static bool IsBuilding(const sc2::UNIT_TYPEID type) 
 	{
 		if (IsCommandStructure(type)) {
@@ -1376,8 +1607,8 @@ private:
 		case sc2::UNIT_TYPEID::TERRAN_BARRACKS:
 		case sc2::UNIT_TYPEID::TERRAN_BARRACKSFLYING:
 		case sc2::UNIT_TYPEID::TERRAN_BARRACKSREACTOR:
-		case sc2::UNIT_TYPEID::TERRAN_BARRACKSTECHLAB:
 		case sc2::UNIT_TYPEID::TERRAN_BUNKER:
+		case sc2::UNIT_TYPEID::TERRAN_BARRACKSTECHLAB:
 		case sc2::UNIT_TYPEID::TERRAN_COMMANDCENTER:		
 		case sc2::UNIT_TYPEID::TERRAN_ENGINEERINGBAY:
 		case sc2::UNIT_TYPEID::TERRAN_FACTORY:
@@ -1412,9 +1643,9 @@ private:
 		case sc2::UNIT_TYPEID::ZERG_LURKERDENMP:
 		case sc2::UNIT_TYPEID::ZERG_NYDUSCANAL:
 		case sc2::UNIT_TYPEID::ZERG_NYDUSNETWORK:
-		case sc2::UNIT_TYPEID::ZERG_SPAWNINGPOOL:
 		case sc2::UNIT_TYPEID::ZERG_SPINECRAWLER:
 		case sc2::UNIT_TYPEID::ZERG_SPINECRAWLERUPROOTED:
+		case sc2::UNIT_TYPEID::ZERG_SPAWNINGPOOL:
 		case sc2::UNIT_TYPEID::ZERG_SPIRE:
 		case sc2::UNIT_TYPEID::ZERG_SPORECRAWLER:
 		case sc2::UNIT_TYPEID::ZERG_SPORECRAWLERUPROOTED:
@@ -1426,8 +1657,9 @@ private:
 		case sc2::UNIT_TYPEID::PROTOSS_DARKSHRINE:
 		case sc2::UNIT_TYPEID::PROTOSS_FLEETBEACON:
 		case sc2::UNIT_TYPEID::PROTOSS_FORGE:
-		case sc2::UNIT_TYPEID::PROTOSS_GATEWAY:
 		case sc2::UNIT_TYPEID::PROTOSS_PHOTONCANNON:
+		case sc2::UNIT_TYPEID::PROTOSS_SHIELDBATTERY:
+		case sc2::UNIT_TYPEID::PROTOSS_GATEWAY:
 		case sc2::UNIT_TYPEID::PROTOSS_PYLON:
 		case sc2::UNIT_TYPEID::PROTOSS_PYLONOVERCHARGED:
 		case sc2::UNIT_TYPEID::PROTOSS_ROBOTICSBAY:
@@ -1453,7 +1685,11 @@ private:
 	}
 
 	const Unit* FindNearestMineralPatch(const Point2D& start) {		
-		return FindNearestUnit(start, Observation()->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return IsMineral(u.unit_type); }));
+		auto m = FindNearestUnit(start, Observation()->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return IsMineral(u.unit_type); }));
+		if (m == nullptr) {				
+			m = FindNearestUnit(start, Observation()->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return IsMineral(u.unit_type); }),10000.0);
+		}
+		return m;
 	}
 
 	/* used to requeue existing orders taken from unit->orders */
