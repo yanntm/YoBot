@@ -873,7 +873,7 @@ public:
 				}
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
-			if (Observation()->GetArmyCount() >= criticalZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && nexus->ideal_harvesters - nexus->assigned_harvesters < 3 ) {
+			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && nexus->ideal_harvesters - nexus->assigned_harvesters < 3 ) {
 				auto g = FindNearestVespeneGeyser(nexus->pos,ass);
 				if (!probes.empty() && g != nullptr) {
 					auto p = chooseClosest(g, probes);
