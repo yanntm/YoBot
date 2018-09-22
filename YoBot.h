@@ -267,14 +267,14 @@ public:
 		}
 	}
 
-	void evade(const Unit * unit) {
-		auto nmies = FindEnemiesInRange(unit->pos, 5.0f);
+	bool evade(const Unit * unit) {
+		auto nmies = FindEnemiesInRange(unit->pos, 4.0f);
 		if (nmies.empty()) {
-			return;
+			return false;
 		}
 		sortByDistanceTo(nmies, unit->pos);
-		if (nmies.size() >= 3) {
-			nmies.resize(3);
+		if (nmies.size() >= 4) {
+			nmies.resize(4);
 		}
 		float delta =2 ;
 		float delta2 =  delta / sqrt(2) ;
@@ -289,9 +289,15 @@ public:
 				queries.push_back({ 0, nmy->pos, p });
 			}
 		}
+		// double distance ?
 		for (auto pos : outs) {
 			queries.push_back({ 0, unit->pos, pos+ (pos - unit->pos) });
 		}
+		// half distance ?
+		for (auto pos : outs) {
+			queries.push_back({ 0, unit->pos, (unit->pos + pos )/2 });
+		}
+
 		// send the query and wait for answer
 		std::vector<float> distances = Query()->PathingDistance(queries);
 		std::vector<float> scores;
@@ -310,16 +316,19 @@ public:
 				score = -1;
 			} else {
 				for (int i = 1; i <= nmies.size(); i++) {
+					float rank = nmies.size() - i + 1;
 					// from enemy to out
 					float dtonmy = distances[ind + i];
 					// it can't path is good, further than where we are now is good
 					if (dtonmy==0) {						
-						score++;
+						score+=rank;
 					}
 					// greater dist from enemy to point than bob to point ?
 					// greater dist from enemy to point than enemy to bob ?
 					else if (dtonmy >= dtobob && dtonmy >= distances[i]) {
-						score += (dtonmy - dtobob) / delta ;
+						score += (dtonmy - distances[i]) / delta * rank;
+					//	score += (dtonmy - distances[i]) / delta;
+					//	score += (dtonmy - dtobob) / delta ;
 					//	score += distances[i] / dtonmy ;
 					}
 				}
@@ -333,6 +342,14 @@ public:
 				scores[outid] *= 2;
 			}
 		}
+		// neg score of not truly reachable
+		for (int outid = 1; outid < outs.size(); outid++) {
+			float next = distances[outs.size() * (nmies.size() + 2) + outid];
+			if (next == 0 || next > 0.7 * delta) {
+				if (scores[outid] > 0)
+					scores[outid] *= -1;
+			}
+		}
 
 		int best = 0;
 		for (int i = 0; i < scores.size(); i++) {
@@ -340,13 +357,31 @@ public:
 				best = i;
 			}
 		}
+
+		int nbouts = 0;
+		auto dprox = Distance2D(proxy, outs[best]);
+		int bestproxout = best;
+		for (int i = 0; i < scores.size(); i++) {
+			if (scores[i] > 0.5 * scores[best]) {
+				nbouts ++;
+				auto dpout = Distance2D(proxy, outs[i]);
+				if (dpout < dprox) {
+					bestproxout = i;
+					dprox = dpout;
+				}
+			}
+		}
+
 #ifdef DEBUG
 		for (int i = 0; i < outs.size(); i++) {
 			auto out = outs[i];
 			if (i == best) {
-				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z+0.1f) , Colors::Green);
+				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z + 0.1f), Colors::Green);
 			}
-			else {
+			else if (i == bestproxout) {
+				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z + 0.1f), Colors::Blue);
+			} 
+			else {			
 				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z + 0.1f));
 			}
 			Debug()->DebugTextOut(std::to_string(scores[i]), Point3D(out.x, out.y, unit->pos.z + 0.1f));
@@ -354,13 +389,22 @@ public:
 		Debug()->SendDebug();
 
 #endif // DEBUG
-
-
-		Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[best]);		
+		auto closest = Distance2D(unit->pos, (*nmies.begin())->pos);
+		if (nbouts <= 2 && ( unit->shield == 0 || closest <= 1.5f) && nexus != nullptr) {
+			// try to mineral slide our way out 
+			Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(nexus->pos));
+		}
+		else if (nbouts >= 3 && closest >= 1.5f && unit->shield >= 0) {
+			Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[bestproxout]);
+		}
+		else {
+			Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[best]);
+		}
+		return true;
 	}
 
 	virtual void OnUnitAttacked(const Unit* unit) final {
-		if (unit == bob) {
+		if (unit == bob && unit->shield <= 5) {
 			// evasive action
 			evade(bob);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
@@ -430,7 +474,7 @@ public:
 
 		}
 		else if (IsBuilding(unit->unit_type) && unit->build_progress < 1.0f) {
-			if (unit->health < 30 || unit->build_progress >= 0.95 && (unit->health + unit->shield) / (unit->health_max + unit->shield_max) < 0.5) {
+			if (unit->health < 30 || unit->build_progress >= 0.95 && (unit->health + unit->shield) / (unit->health_max + unit->shield_max) < 0.6) {
 				Actions()->UnitCommand(unit,ABILITY_ID::CANCEL);
 			}
 		}
@@ -678,9 +722,10 @@ public:
 #endif
 		//sc2::SleepFor(20);
 
-		if (bob != nullptr && frame%5==0) {
-			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE)) {
-				evade(bob);
+		bool evading = false;
+		if (bob != nullptr && frame%6==0) {
+			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE || bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
+				evading = evade(bob);
 			}
 		}
 
@@ -763,8 +808,8 @@ public:
 
 		// we get undesirable double commands if we do this each frame
 		if (frame % 3 == 0) {
-			TryBuildSupplyDepot(pylons);
-			TryBuildBarracks();
+			TryBuildSupplyDepot(pylons,evading);
+			TryBuildBarracks(evading);
 			TryBuildUnits();
 		}
 		auto estimated = estimateEnemyStrength();
@@ -1249,6 +1294,9 @@ private:
 				if (gw->build_progress < 1) {
 					continue;
 				}
+				if (!gw->is_powered) {
+					continue;
+				}
 				if (gw->orders.size() == 0) {
 					Actions()->UnitCommand(gw, tobuild);
 					nbuilt++;
@@ -1324,7 +1372,13 @@ private:
 		return true;
 	}
 
-	bool TryBuildSupplyDepot(const Units & pylons) {
+	float damageRatio(const Unit * unit) {
+		auto ratio = (unit->health + unit->shield) / (unit->health_max + unit->shield_max);
+
+		return ratio / unit->build_progress;
+	}
+
+	bool TryBuildSupplyDepot(const Units & pylons, bool evading =false) {
 		const ObservationInterface* observation = Observation();
 		if (minerals < 100) {
 			return false;
@@ -1337,18 +1391,26 @@ private:
 			return true;
 		}
 
-		// If we are not supply capped, don't build a supply depot.
-		if (observation->GetFoodUsed() < 20 && supplyleft > 2)
-			return false;
-		if (observation->GetFoodUsed() >= 20 && supplyleft > 6)
-			return false;
-
-		
+		bool needSupport = false;
 		for (const auto& unit : pylons) {
 			if (unit->build_progress < 1) {
-				return false;
+				auto r = damageRatio(unit);
+				if (r >= 1)
+					return false;
+				else
+					needSupport = true;
 			}
 		}
+
+		// If we are not supply capped, don't build a supply depot.
+		if (!needSupport) {
+			if (observation->GetFoodUsed() < 20 && supplyleft > 2)
+				return false;
+			if (observation->GetFoodUsed() >= 20 && supplyleft > 6)
+				return false;
+		}
+		
+		
 
 
 
@@ -1372,20 +1434,23 @@ private:
 				Point2D(unit_to_build->pos.x + rx * 5.0f, unit_to_build->pos.y + ry * 5.0f));
 		} else {
 			Units gws = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
-			if (gws.size() != 0) {
+			if (gws.size() != 0 || needSupport) {
 				for (auto & gw : gws) {
 					if (!gw->is_powered) {
+						minerals -= 100;
 						Actions()->UnitCommand(unit_to_build,
 							ABILITY_ID::BUILD_PYLON,
 							Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f));
 						return true;
-						break;
 					}
 				}
 
 				bool good = false;
 				int iter = 0;
 				auto candidate = Point2D(proxy.x + rx * (8.0f + gws.size() * 2), proxy.y + ry * (8.0f + gws.size() * 2));
+				if (evading) {
+					candidate = Point2D(unit_to_build->pos.x + rx * (3.0f + gws.size() * 2), proxy.y + ry * (3.0f + gws.size() * 2));
+				}
 				while (!good && iter++ < 25) {
 
 					std::vector<sc2::QueryInterface::PlacementQuery> queries;
@@ -1487,7 +1552,7 @@ private:
 	const int criticalZeal = 7;
 	const int maxZeal = 18;
 
-	bool TryBuildBarracks() {
+	bool TryBuildBarracks(bool evading = false) {
 
 
 		if (CountUnitType(UNIT_TYPEID::PROTOSS_PYLON) < 1) {
@@ -1531,8 +1596,11 @@ private:
 		float rx = GetRandomScalar();
 		float ry = GetRandomScalar();
 
-
-		Point2D candidate = Point2D(bob->pos.x + rx * 15.0f, bob->pos.y + ry * 15.0f);
+		float maxdist = 15.0f;
+		if (FindEnemiesInRange(bob->pos, 8.0f).size() >= 2 || evading) {
+			maxdist = 5.0f;
+		}
+		Point2D candidate = Point2D(bob->pos.x + rx * maxdist, bob->pos.y + ry *maxdist);
 		std::vector<sc2::QueryInterface::PlacementQuery> queries;
 		queries.reserve(5);
 		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate));
