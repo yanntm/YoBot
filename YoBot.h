@@ -45,6 +45,17 @@ public:
 		// Determine choke and proxy locations
 		computeMapTopology(starts, expansions);
 
+
+		auto playerID = Observation()->GetPlayerID();
+		for (const auto & playerInfo : Observation()->GetGameInfo().player_info)
+		{
+			if (playerInfo.player_id != playerID)
+			{
+				enemyRace = playerInfo.race_requested;
+				break;
+			}
+		}
+
 		auto myStart = Observation()->GetStartLocation();
 		for (int i = 0; i < starts.size(); i++) {
 			if (DistanceSquared2D(starts[i], myStart) < 5.0f) {
@@ -71,10 +82,14 @@ public:
 				max = 3;
 			}
 			int rnd = GetRandomInteger(0, max);
-			if (rnd <= 1) {
+			int limit = 1;
+			if (enemyRace == Race::Zerg) {
+				limit = 0;
+			}
+			if (rnd <= limit) {
 				proxy = expansions[naturalBases[other]];
 			}
-			else if (rnd == 2) {
+			else if (rnd <= 2) {
 				proxy = expansions[proxyBases[other]];				
 			}
 			else if (rnd == 3) {
@@ -251,8 +266,104 @@ public:
 			std::cout << ce << std::endl;
 		}
 	}
+
+	void evade(const Unit * unit) {
+		auto nmies = FindEnemiesInRange(unit->pos, 5.0f);
+		if (nmies.empty()) {
+			return;
+		}
+		sortByDistanceTo(nmies, unit->pos);
+		if (nmies.size() >= 3) {
+			nmies.resize(3);
+		}
+		float delta =2 ;
+		float delta2 =  delta / sqrt(2) ;
+		std::vector<Point2D> outs = { unit->pos, 
+			unit->pos + Point2D(delta,0.0f), unit->pos + Point2D(0.0f,delta) , unit->pos + Point2D(-delta,0.0f) , unit->pos + Point2D(0.0f,-delta) ,
+			unit->pos + Point2D(delta2,delta2), unit->pos + Point2D(delta2,-delta2) , unit->pos + Point2D(-delta2,delta2) , unit->pos + Point2D(-delta2,-delta2)
+		};
+		std::vector <sc2::QueryInterface::PathingQuery> queries;
+		for (auto p : outs) {
+			queries.push_back({ 0, unit->pos, p });
+			for (auto nmy : nmies) {
+				queries.push_back({ 0, nmy->pos, p });
+			}
+		}
+		for (auto pos : outs) {
+			queries.push_back({ 0, unit->pos, pos+ (pos - unit->pos) });
+		}
+		// send the query and wait for answer
+		std::vector<float> distances = Query()->PathingDistance(queries);
+		std::vector<float> scores;
+		scores.reserve(outs.size());
+		// 0 pos is us
+		scores.push_back(-1);
+		// skip us, it's not  an option
+		for (int outid = 1; outid < outs.size(); outid++) {
+			// our distance
+			int ind = outid * (nmies.size()+1);
+			float dtobob = distances[ind];
+			// who can beat us to it ?
+			float score = 0;
+			if (dtobob == 0 || dtobob >= 1.2 * delta) {
+				// non pathable
+				score = -1;
+			} else {
+				for (int i = 1; i <= nmies.size(); i++) {
+					// from enemy to out
+					float dtonmy = distances[ind + i];
+					// it can't path is good, further than where we are now is good
+					if (dtonmy==0) {						
+						score++;
+					}
+					// greater dist from enemy to point than bob to point ?
+					// greater dist from enemy to point than enemy to bob ?
+					else if (dtonmy >= dtobob && dtonmy >= distances[i]) {
+						score += (dtonmy - dtobob) / delta ;
+					//	score += distances[i] / dtonmy ;
+					}
+				}
+			}
+			scores.push_back(score);
+		}
+		// double score of truly open outs
+		for (int outid = 1; outid < outs.size(); outid++) {
+			float next = distances[outs.size() * (nmies.size() + 1) + outid];
+			if (next != 0 && next < 2.3 * delta) {
+				scores[outid] *= 2;
+			}
+		}
+
+		int best = 0;
+		for (int i = 0; i < scores.size(); i++) {
+			if (scores[i] > scores[best]) {
+				best = i;
+			}
+		}
+#ifdef DEBUG
+		for (int i = 0; i < outs.size(); i++) {
+			auto out = outs[i];
+			if (i == best) {
+				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z+0.1f) , Colors::Green);
+			}
+			else {
+				Debug()->DebugLineOut(unit->pos, Point3D(out.x, out.y, unit->pos.z + 0.1f));
+			}
+			Debug()->DebugTextOut(std::to_string(scores[i]), Point3D(out.x, out.y, unit->pos.z + 0.1f));
+		}
+		Debug()->SendDebug();
+
+#endif // DEBUG
+
+
+		Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[best]);		
+	}
+
 	virtual void OnUnitAttacked(const Unit* unit) final {
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self && unit != bob) {
+		if (unit == bob) {
+			// evasive action
+			evade(bob);
+		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
 			auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			int att = 0;
 			for (auto unit : list) {
@@ -305,27 +416,32 @@ public:
 				}
 			}
 		}
-		else {
-			if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
-				if (unit->shield >= 20 && unit->shield < 25) {
-					auto nmy = FindNearestEnemy(unit->pos);
-					auto vec = unit->pos - nmy->pos;
+		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
+			if (unit->shield >= 20 && unit->shield < 25) {
+				auto nmy = FindNearestEnemy(unit->pos);
+				auto vec = unit->pos - nmy->pos;
 
-					Actions()->UnitCommand(unit, ABILITY_ID::MOVE, unit->pos + (vec / 2));
-					//std::cout << "ouch run away" << std::endl;
-				}
-				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, unit->pos);
-				}				
+				Actions()->UnitCommand(unit, ABILITY_ID::MOVE, unit->pos + (vec / 2));
+				//std::cout << "ouch run away" << std::endl;
 			}
 			else {
-				for (auto friendly : FindFriendliesInRange(unit->pos, 8.0f)) {
-					if (friendly->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
-						OnUnitHasAttacked(friendly);
-					}
+				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, unit->pos);
+			}
+
+		}
+		else if (IsBuilding(unit->unit_type) && unit->build_progress < 1.0f) {
+			if (unit->health < 30 || unit->build_progress >= 0.95 && (unit->health + unit->shield) / (unit->health_max + unit->shield_max) < 0.5) {
+				Actions()->UnitCommand(unit,ABILITY_ID::CANCEL);
+			}
+		}
+		else {
+			for (auto friendly : FindFriendliesInRange(unit->pos, 8.0f)) {
+				if (friendly->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
+					OnUnitHasAttacked(friendly);
 				}
 			}
 		}
+
 	}
 
 	virtual void OnUnitEnterVision(const Unit* u) final {
@@ -402,13 +518,13 @@ public:
 	}
 
 	const Unit* FindWeakestUnit(const Units & units) {
-		float distance = std::numeric_limits<float>::max();
+		float maxhp = std::numeric_limits<float>::max();
 		const Unit* targete = nullptr;
 		for (const auto& u : units) {
 			
-			float d = u->health + u->shield;
-			if (d < distance ) {
-				distance = d;
+			float hp = u->health + u->shield;
+			if (hp < maxhp) {
+				maxhp = hp;
 				targete = u;
 			}
 			
@@ -562,6 +678,12 @@ public:
 #endif
 		//sc2::SleepFor(20);
 
+		if (bob != nullptr && frame%5==0) {
+			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE)) {
+				evade(bob);
+			}
+		}
+
 		if (proxy != target) {
 			if (FindEnemiesInRange(target, 18).empty() && baseRazed) {
 				target = proxy;
@@ -646,7 +768,7 @@ public:
 			TryBuildUnits();
 		}
 		auto estimated = estimateEnemyStrength();
-		if (Observation()->GetArmyCount() >= 7 || Observation()->GetFoodWorkers() < 5) {
+		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodWorkers() < 5) {
 			const GameInfo& game_info = Observation()->GetGameInfo();			
 			
 			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
@@ -706,12 +828,13 @@ public:
 				}
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
-			if (minerals >= 500 && ass.size() < 2 && nexus != nullptr) {
+			if (Observation()->GetArmyCount() >= criticalZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && nexus->ideal_harvesters - nexus->assigned_harvesters < 3 ) {
 				auto g = FindNearestVespeneGeyser(nexus->pos,ass);
 				if (!probes.empty() && g != nullptr) {
 					auto p = chooseClosest(g, probes);
 					Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
 					Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
+					minerals -= 75;
 				}
 			}
 			for (const auto & a : ass) {
@@ -1097,6 +1220,7 @@ private:
 	bool baseRazed ;
 	std::unordered_map<Tag,const Unit *> enemies;
 	long int frame = 0;
+	Race enemyRace;
 
 	size_t CountUnitType(UNIT_TYPEID unit_type) {
 		return Observation()->GetUnits(Unit::Alliance::Self, IsUnit(unit_type)).size();
@@ -1111,7 +1235,7 @@ private:
 			}
 		}
 		
-		if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) >= 20) {
+		if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) >= maxZeal) {
 			chronoBuild(UNIT_TYPEID::PROTOSS_STARGATE, ABILITY_ID::TRAIN_VOIDRAY, 4, 250, 150);
 		} else  {
 			chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);			
@@ -1360,6 +1484,9 @@ private:
 		return true;
 	}
 
+	const int criticalZeal = 7;
+	const int maxZeal = 18;
+
 	bool TryBuildBarracks() {
 
 
@@ -1371,14 +1498,14 @@ private:
 		int sgs = CountUnitType(UNIT_TYPEID::PROTOSS_STARGATE);
 		int zeals = CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT);
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
-		if (gws >= 4 && zeals < 20) {
+		if (gws >= 4 && zeals < maxZeal) {
 			return false;
 		}
-		if (zeals >= 20 && sgs >= 2) {
+		if (zeals >= maxZeal && sgs >= 2) {
 			return false;
 		}
-		if (zeals >= 20 && nexus != nullptr) {
-			// 20 zeals is plenty make some VR now
+		if (zeals >= maxZeal && nexus != nullptr) {
+			// maxZeal (20) zeals is plenty make some VR now
 			int cyber = CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE);
 			if (cyber == 0) {				
 				tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
@@ -1704,7 +1831,7 @@ private:
 		float distance = std::numeric_limits<float>::max();
 		int ti = 0;
 		for (int i = 0; i < distances.size(); i++) {
-			if (distance > distances[i]) {
+			if (distances[i] != 0.0f && distance > distances[i]) {
 				distance = distances[i];
 				ti = i;
 			}
