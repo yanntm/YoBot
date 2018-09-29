@@ -66,7 +66,7 @@ public:
 			target = proxy;
 		}
 		else {
-			target = game_info.enemy_start_locations.front();
+			target = map.getPosition(MapTopology::enemy, MapTopology::main);
 			
 			int max = 2 ;
 			if (map.hasPockets()) {
