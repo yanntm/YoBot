@@ -4,6 +4,7 @@
 #include "sc2api/sc2_map_info.h"
 #include "sc2api/sc2_agent.h"
 
+
 class MapTopology
 {
 	
@@ -15,6 +16,9 @@ class MapTopology
 	// each base has a staging area, an open ground to group units before attacking
 	std::vector<sc2::Point2D> stagingFor;	
 	int ourBaseStartLocIndex;
+	// Calculates expansion locations, this call can take on the order of 100ms since it makes blocking queries to SC2 so call it once and cache the reults.
+	// it is modified from original provided by sc2API
+	static std::vector<sc2::Point3D> CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
 public:
 	// raw cache for locations computed for expansions
 	std::vector<sc2::Point3D> expansions;

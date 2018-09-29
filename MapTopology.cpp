@@ -15,7 +15,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	const GameInfo& game_info = initial->GetGameInfo();
 	// compute a good place to put a nexus on the map : minerals and gas
 	{
-		expansions = sc2::search::CalculateExpansionLocations(initial, query);
+		expansions = MapTopology::CalculateExpansionLocations(initial, query);
 		// sometimes we get bad stuff out of here
 		auto min = game_info.playable_min;
 		auto max = game_info.playable_max;
@@ -31,7 +31,8 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	size_t sz = expansions.size();
 
 	// for the next steps, we want pathing info; targetting the center of a nexus will not work, so moving a bit off center is good.
-	for (auto & p : expansions) {
+	vector<Point3D> expcopy = expansions;
+	for (auto & p : expcopy) {
 		Units closeMins = initial->GetUnits(Unit::Alliance::Neutral, [p](const Unit & u) { return  IsMineral(u.unit_type) && Distance2D(u.pos, p) < 10.0f; });
 		sortByDistanceTo(closeMins, p);
 		// take the four closest
@@ -42,15 +43,15 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 		}
 	}
 
-	std::valarray<float> matrix = computeDistanceMatrix(expansions,query);
+	std::valarray<float> matrix = computeDistanceMatrix(expcopy, query);
 
 #ifdef DEBUG
 	if (debug != nullptr) {
 		for (int i = 0; i < sz; i++) {
 			for (int j = i + 1; j < sz; j++) {
 				auto color = (matrix[i*sz + j] > 100000.0f) ? Colors::Red : Colors::Green;
-				debug->DebugLineOut(expansions[i] + Point3D(0, 0, 0.5f), expansions[j] + Point3D(0, 0, 0.5f), color);
-				debug->DebugTextOut(std::to_string(matrix[i*sz + j]), (expansions[i] + Point3D(0, 0, 0.2f) + expansions[j]) / 2, Colors::Green);
+				debug->DebugLineOut(expcopy[i] + Point3D(0, 0, 0.5f), expcopy[j] + Point3D(0, 0, 0.5f), color);
+				debug->DebugTextOut(std::to_string(matrix[i*sz + j]), (expcopy[i] + Point3D(0, 0, 0.2f) + expcopy[j]) / 2, Colors::Green);
 			}
 		}
 	}
@@ -169,25 +170,26 @@ bool MapTopology::hasPockets() const {
 }
 
 const sc2::Point3D & MapTopology::getPosition(Player p, BaseType b) const {
-	int id = p==ally ? ourBaseStartLocIndex : (ourBaseStartLocIndex == 0) ? 1 : 0;
-	
+	int id = p == ally ? ourBaseStartLocIndex : (ourBaseStartLocIndex == 0) ? 1 : 0;
+
 	switch (b) {
-	case main: return expansions[mainBases[id]];
 	case nat: return expansions[naturalBases[id]];
 	case proxy: return expansions[proxyBases[id]];
-	case pocket: 
+	case pocket:
 		if (hasPockets()) {
 			return expansions[pocketBases[id]];
 		}
 		else {
 			return expansions[naturalBases[id]];
 		}
+	case main: 
+	default :	return expansions[mainBases[id]];
 	}
 }
 
 const Point3D & MapTopology::FindNearestBase(const Point3D& start) const {
 	float distance = std::numeric_limits<float>::max();
-	const Point3D * targetb = & expansions[0];
+	const Point3D * targetb = &expansions[0];
 	for (const auto& u : expansions) {
 		float d = DistanceSquared2D(u, start);
 		float deltaz = abs(start.z - u.z);
@@ -210,10 +212,162 @@ void MapTopology::debugMap(DebugInterface * debug) {
 		debug->DebugTextOut(text, sc2::Point3D(e.x, e.y, e.z + 2), Colors::Green);
 	}
 
-	for (int startloc = 0, max=mainBases.size(); startloc < max; startloc++) {
+	for (int startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
 		debug->DebugTextOut("main" + std::to_string(startloc), expansions[mainBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 		debug->DebugTextOut("nat" + std::to_string(startloc), expansions[naturalBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 		if (pocketBases[startloc] != -1) debug->DebugTextOut("pocket" + std::to_string(startloc), expansions[pocketBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 		debug->DebugTextOut("proxy" + std::to_string(startloc), expansions[proxyBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 	}
 }
+
+static const float PI = 3.1415927f;
+// Directly taken from sc2_search.cc of sc2api
+size_t CalculateQueries(float radius, float step_size, const Point2D& center, std::vector<QueryInterface::PlacementQuery>& queries) {
+	Point2D current_grid, previous_grid(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+	size_t valid_queries = 0;
+	// Find a buildable location on the circumference of the sphere
+	float loc = 0.0f;
+	while (loc < 360.0f) {
+		Point2D point = Point2D(
+			(radius * std::cos((loc * PI) / 180.0f)) + center.x,
+			(radius * std::sin((loc * PI) / 180.0f)) + center.y);
+
+		QueryInterface::PlacementQuery query(ABILITY_ID::BUILD_COMMANDCENTER, point);
+
+		current_grid = Point2D(floor(point.x), floor(point.y));
+
+		if (previous_grid != current_grid) {
+			queries.push_back(query);
+			++valid_queries;
+		}
+
+		previous_grid = current_grid;
+		loc += step_size;
+	}
+
+	return valid_queries;
+}
+
+
+// Adapted (patched) with respect to version of sc_search.cc of the sc2api
+std::vector<Point3D> MapTopology::CalculateExpansionLocations(const ObservationInterface* observation, QueryInterface* query) {
+	search::ExpansionParameters parameters = sc2::search::ExpansionParameters();
+	Units resources = observation->GetUnits(
+		[](const Unit& unit) {
+		return unit.unit_type == UNIT_TYPEID::NEUTRAL_MINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_MINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_RICHMINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_RICHMINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERMINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERMINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERRICHMINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERRICHMINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_LABMINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_LABMINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_BATTLESTATIONMINERALFIELD || unit.unit_type == UNIT_TYPEID::NEUTRAL_BATTLESTATIONMINERALFIELD750 ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_VESPENEGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_PROTOSSVESPENEGEYSER ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_SPACEPLATFORMGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERVESPENEGEYSER ||
+			unit.unit_type == UNIT_TYPEID::NEUTRAL_SHAKURASVESPENEGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_RICHVESPENEGEYSER;
+	}
+	);
+
+
+	std::vector<Point3D> expansion_locations;
+	std::vector<std::pair<Point3D, std::vector<Unit> > > clusters = search::Cluster(resources, parameters.cluster_distance_);
+
+	std::vector<size_t> query_size;
+	std::vector<QueryInterface::PlacementQuery> queries;
+	for (size_t i = 0; i < clusters.size(); ++i) {
+		std::pair<Point3D, std::vector<Unit> >& cluster = clusters[i];
+		if (parameters.debug_) {
+			for (auto r : parameters.radiuses_) {
+				parameters.debug_->DebugSphereOut(cluster.first, r, Colors::Green);
+			}
+		}
+
+		// Get the required queries for this cluster.
+		size_t query_count = 0;
+		for (auto r : parameters.radiuses_) {
+			query_count += CalculateQueries(r, parameters.circle_step_size_, cluster.first, queries);
+		}
+
+		query_size.push_back(query_count);
+	}
+
+	std::vector<bool> results = query->Placement(queries);
+
+	// Edit the results : allow to build in command structure existing location
+	Units commandStructures = observation->GetUnits(
+		[](const Unit& unit) {
+		return unit.unit_type == UNIT_TYPEID::TERRAN_COMMANDCENTER || unit.unit_type == UNIT_TYPEID::TERRAN_ORBITALCOMMAND || unit.unit_type == UNIT_TYPEID::TERRAN_PLANETARYFORTRESS ||
+			unit.unit_type == UNIT_TYPEID::PROTOSS_NEXUS ||
+			unit.unit_type == UNIT_TYPEID::ZERG_HATCHERY || unit.unit_type == UNIT_TYPEID::ZERG_LAIR || unit.unit_type == UNIT_TYPEID::ZERG_HIVE;
+	});
+	for (auto cc : commandStructures) {
+		for (int i = 0; i < queries.size(); ++i) {
+			if (DistanceSquared2D(cc->pos, queries[i].target_pos) < 1.0f) {
+				results[i] = true;
+			}
+		}
+	}
+
+	size_t start_index = 0;
+	for (int i = 0; i < clusters.size(); ++i) {
+		std::pair<Point3D, std::vector<Unit> >& cluster = clusters[i];
+
+		// to store the distances to gas per valid position
+		std::vector<float> dposgas;
+		dposgas.reserve(query_size[i]);
+		// first traverse and find minimal distance to gas as well as distance of each cluster and store it 
+		float dgasmin = std::numeric_limits<float>::max();
+		for (size_t j = start_index, e = start_index + query_size[i]; j < e; ++j) {
+			if (!results[j]) {
+				continue;
+			}
+
+			Point2D& p = queries[j].target_pos;
+
+			float dgas = 0;
+			// instead sum distances to all minerals/gas in the cluster
+			for (const auto & unit : cluster.second) {
+				// distance squared is faster and does not change min/max results
+				if (unit.unit_type == UNIT_TYPEID::NEUTRAL_VESPENEGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_PROTOSSVESPENEGEYSER ||
+					unit.unit_type == UNIT_TYPEID::NEUTRAL_SPACEPLATFORMGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_PURIFIERVESPENEGEYSER ||
+					unit.unit_type == UNIT_TYPEID::NEUTRAL_SHAKURASVESPENEGEYSER || unit.unit_type == UNIT_TYPEID::NEUTRAL_RICHVESPENEGEYSER) {
+					dgas += DistanceSquared2D(p, unit.pos);
+				}
+			}
+			if (dgas < dgasmin) {
+				dgasmin = dgas;
+			}
+			dposgas.push_back(dgas);
+		}
+
+		float distance = std::numeric_limits<float>::max();
+		Point2D closest;
+		// For each query for the cluster minimum distance location that is valid.
+		for (size_t j = start_index, e = start_index + query_size[i], index = 0; j < e; ++j) {
+			if (!results[j]) {
+				continue;
+			}
+			// index only incremented for valid positions
+			if (dposgas[index++] > dgasmin) {
+				continue;
+			}
+			Point2D& p = queries[j].target_pos;
+
+			float d = Distance2D(p, cluster.first);
+			if (d < distance) {
+				distance = d;
+				closest = p;
+			}
+		}
+
+		Point3D expansion(closest.x, closest.y, cluster.second.begin()->pos.z);
+
+		if (parameters.debug_) {
+			parameters.debug_->DebugSphereOut(expansion, 0.35f, Colors::Red);
+		}
+
+		expansion_locations.push_back(expansion);
+		start_index += query_size[i];
+	}
+
+	return expansion_locations;
+}
+
