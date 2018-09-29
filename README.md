@@ -6,11 +6,12 @@ The bot itself lives in YoBot.h
 
 It does a dirty 4 gate rush zealot.
 
-Has been ranked up to first place on the sc2 ladder for bots : http://sc2ai.net
 
 Based on files of CryptBot ladder example, see https://github.com/Cryptyc/CryptBot
 
 This bot is meant to compete in the sc2ai ladder competition : https://www.sc2ai.net/
+
+It did well there, having been ranked up to first place on ladder in season 6.
 
 This Bot Code is placed under Gnu General Public License v3, see LICENSE file.
 This means you can reuse code from it only if you are using a compatible (FOSS) license.
