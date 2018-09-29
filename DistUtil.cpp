@@ -17,7 +17,7 @@ namespace sc2util {
 		return byDist;
 	}
 
-	std::valarray<float> computeDistanceMatrix(const std::vector<Point3D> expansions, QueryInterface * query) {
+	std::valarray<float> computeDistanceMatrix(const std::vector<Point3D> & expansions, QueryInterface * query) {
 		std::vector <sc2::QueryInterface::PathingQuery> queries;
 		auto sz = expansions.size();
 
