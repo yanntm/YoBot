@@ -24,13 +24,13 @@ int main(int argc, char* argv[])
 	coordinator.SetParticipants({
 		CreateParticipant(sc2::Race::Protoss, &bot),//CreateParticipant(sc2::Race::Protoss, &bot2)
 		//sc2::PlayerSetup(sc2::PlayerType::Observer,Util::GetRaceFromString(enemyRaceString)),
-		CreateComputer(sc2::Race::Terran, sc2::Difficulty::VeryHard)
+		CreateComputer(sc2::Race::Terran, sc2::Difficulty::CheatInsane)
 	});
 	// Start the game.
 	coordinator.LaunchStarcraft();
-	//auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\AcidPlantLE.SC2Map"; // "AcidPlant LE";  //"Interloper LE""16-Bit LE"
+	auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\AcidPlantLE.SC2Map"; // "AcidPlant LE";  //"Interloper LE""16-Bit LE"
 	// auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\Redshift.SC2Map";
-	 auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\DarknessSanctuary.SC2Map";
+	// auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\DarknessSanctuary.SC2Map";
 	//auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\16BitLE.SC2Map";
 	//auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\InterloperLE.SC2Map";
 	// auto map = "G:\\Program Files (x86)\\StarCraft II\\Maps\\LostAndFoundLE.SC2Map";
