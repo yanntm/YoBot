@@ -6,6 +6,8 @@
 
 #include "UnitTypes.h"
 
+#include "YoAgent.h"
+
 #include <valarray>
 
 //#include "Strategys.h"
@@ -13,7 +15,7 @@
 using namespace sc2;
 using namespace sc2util;
 
-class YoBot : public Agent {
+class YoBot : public YoAgent {
 public:
 
 	virtual void OnGameStart() final {
@@ -273,13 +275,13 @@ public:
 	}
 
 	bool evade(const Unit * unit) {
-		auto nmies = FindEnemiesInRange(unit->pos, 4.0f);
+		auto nmies = FindEnemiesInRange(unit->pos, 6.0f);
 		if (nmies.empty()) {
 			return false;
 		}
 		sortByDistanceTo(nmies, unit->pos);
-		if (nmies.size() >= 4) {
-			nmies.resize(4);
+		if (nmies.size() >= 8) {
+			nmies.resize(8);
 		}
 		float delta =2 ;
 		float delta2 =  delta / sqrt(2) ;
@@ -536,12 +538,16 @@ public:
 			}
 			auto nmy = Observation()->GetUnits(Unit::Alliance::Enemy, [this] (const Unit & u) { return  Distance2D(u.pos, proxy) < 10.0f; } ); 
 			bool move = false;
+			int att = 0;
 			for (const auto & u : nmy) {
-				if (IsArmyUnitType(u->unit_type) || IsBuilding(u->unit_type)) {
+				if (isStaticDefense(u->unit_type)) {
 					move = true;
 				}
+				if (IsArmyUnitType(u->unit_type)) {
+					att++;
+				}
 			}
-			if (move || nmy.size() >= 3) {
+			if (move || att >= CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) || nmy.size() >= 8 || CountUnitType(UNIT_TYPEID::PROTOSS_GATEWAY) <3) {
 				proxy = expansions[ourBaseExpansionIndex];
 			}
 		}
@@ -880,7 +886,7 @@ public:
 				}
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
-			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && nexus->ideal_harvesters - nexus->assigned_harvesters < 3 ) {
+			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( nexus->ideal_harvesters - nexus->assigned_harvesters < 3 || minerals >= 500)) {
 				auto g = FindNearestVespeneGeyser(nexus->pos,ass);
 				if (!probes.empty() && g != nullptr) {
 					auto p = chooseClosest(g, probes);
@@ -908,7 +914,7 @@ public:
 						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag; })
 						, probes.end());
 					if (!probes.empty()) {
-						auto p = chooseClosest(a, probes);
+						auto p = chooseClosest(min, probes);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min);
 					}
 				}
@@ -1450,7 +1456,7 @@ private:
 			Units gws = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
 			if (gws.size() != 0 || needSupport) {
 				for (auto & gw : gws) {
-					if (!gw->is_powered) {
+					if (!gw->is_powered && (! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f)) {
 						minerals -= 100;
 						Actions()->UnitCommand(unit_to_build,
 							ABILITY_ID::BUILD_PYLON,
@@ -1463,7 +1469,7 @@ private:
 				int iter = 0;
 				auto candidate = Point2D(proxy.x + rx * (8.0f + gws.size() * 2), proxy.y + ry * (8.0f + gws.size() * 2));
 				if (evading) {
-					candidate = Point2D(unit_to_build->pos.x + rx * (3.0f + gws.size() * 2), proxy.y + ry * (3.0f + gws.size() * 2));
+					candidate = Point2D(unit_to_build->pos.x + rx * 3.0f, proxy.y + ry * 3.0f);
 				}
 				while (!good && iter++ < 25) {
 
@@ -1706,10 +1712,12 @@ private:
 		for (auto & p : expansions) {
 			Units closeMins = Observation()->GetUnits(Unit::Alliance::Neutral, [p](const Unit & u) { return  IsMineral(u.unit_type) && Distance2D(u.pos,p) < 10.0f; });
 			sortByDistanceTo(closeMins, p);
-			// take the three closest
+			// take the four closest
 			
-			Point3D cog = (closeMins[0]->pos + closeMins[1]->pos + closeMins[2]->pos + closeMins[3]->pos) / 4 ;
-			p += (p - cog);
+			if (closeMins.size() >= 4) {
+				Point3D cog = (closeMins[0]->pos + closeMins[1]->pos + closeMins[2]->pos + closeMins[3]->pos) / 4;
+				p += (p - cog);
+			}
 		}
 
 		std::valarray<float> matrix = computeDistanceMatrix(expansions);
