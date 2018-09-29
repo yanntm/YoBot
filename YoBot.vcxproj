@@ -132,10 +132,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DistUtil.cpp" />
+    <ClCompile Include="MapTopology.cpp" />
     <ClCompile Include="UnitTypes.cpp" />
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DistUtil.h" />
+    <ClInclude Include="MapTopology.h" />
     <ClInclude Include="UnitTypes.h" />
     <ClInclude Include="LadderInterface.h" />
     <ClInclude Include="YoAgent.h" />
