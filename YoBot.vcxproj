@@ -132,9 +132,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="UnitTypes.cpp" />
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="UnitTypes.h" />
     <ClInclude Include="LadderInterface.h" />
     <ClInclude Include="YoBot.h" />
   </ItemGroup>
