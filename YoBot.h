@@ -38,7 +38,9 @@ public:
 			// sometimes we get bad stuff out of here
 			auto min = Observation()->GetGameInfo().playable_min;
 			auto max = Observation()->GetGameInfo().playable_max;
-			remove_if(expansions.begin(), expansions.end(),[min, max](const Point3D & u) { return !(u.x > min.x && u.x < max.x && u.y > min.y && u.y < max.y); });
+			expansions.erase(
+				remove_if(expansions.begin(), expansions.end(), [min, max](const Point3D & u) { return !(u.x > min.x && u.x < max.x && u.y > min.y && u.y < max.y); })
+				, expansions.end());
 
 		}
 
@@ -433,7 +435,9 @@ public:
 				}
 				sum /= list.size();
 				// the probes with less than half of average life are pulled
-				std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2 ; });
+				list.erase(
+					std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2; })
+					,list.end()); 
 				sortByDistanceTo(list, reaper->pos);
 				std::sort(list.begin(), list.end(), [](const Unit * a, const Unit *b) { return a->health + a->shield > b->health + b->shield; });
 
@@ -887,14 +891,19 @@ public:
 					continue;
 				}
 				if (a->assigned_harvesters < 3) {
-					remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag; });
+					probes.erase(
+						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag; })
+						, probes.end());
+					
 					if (!probes.empty()) {
 						auto p = chooseClosest(a, probes);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
 					}
 				}
 				else if (a->assigned_harvesters > 3) {
-					remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag; });
+					probes.erase(
+						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag; })
+						, probes.end());
 					if (!probes.empty()) {
 						auto p = chooseClosest(a, probes);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min);
@@ -1134,7 +1143,9 @@ public:
 			sc2::Point3D p1 = z->pos;			
 			p1.x += length * std::cos(z->facing);
 			p1.y += length * std::sin(z->facing); 
-			std::remove_if(enemies.begin(), enemies.end(), [p1,attRange](const auto & u) {  return Distance2D(u->pos, p1) > attRange + u->radius;  });
+			enemies.erase(
+				std::remove_if(enemies.begin(), enemies.end(), [p1, attRange](const auto & u) {  return Distance2D(u->pos, p1) > attRange + u->radius;  })
+				, enemies.end());
 
 			if (!enemies.empty()) {
 				float max = 2000;
@@ -1768,7 +1779,9 @@ private:
 			
 			// next look for the closest bases to this nat 
 			std::vector<int> byDistNat = sortByDistanceTo(matrix, nat, sz);
-			std::remove_if(byDistNat.begin(), byDistNat.end(),[nat, pocket, ti](int v) { return v == nat || v==pocket || v==ti; });
+			byDistNat.erase(
+				std::remove_if(byDistNat.begin(), byDistNat.end(), [nat, pocket, ti](int v) { return v == nat || v == pocket || v == ti; })
+				, byDistNat.end());
 
 			// limit to close bases
 			float dCloseNat = matrix[nat*sz + byDistNat[0]];
