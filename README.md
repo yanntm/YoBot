@@ -17,4 +17,6 @@ This means you can reuse code from it only if you are using a compatible (FOSS) 
 
 In particular, any bot submitted to ladder or competitions using code from YoBot is an executable binary that meets the conditions of GPL, and thus falls under the contaminating clause of open source, and must have a public hosting for it's sources.
 
+With this condition met, feel free to reuse and adapt the code for your own use, and meet me on Ladder !
+
 We are very open to contributors, ideas etc... please use the issues or discord channel @ sc2ai.
