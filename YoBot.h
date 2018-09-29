@@ -811,7 +811,7 @@ public:
 				if (a->build_progress < 1.0f) {
 					continue;
 				}
-				if (a->assigned_harvesters < 3) {
+				if (a->assigned_harvesters < 3 && nexus != nullptr && ( nexus->ideal_harvesters - nexus->assigned_harvesters < 3 || minerals >=200)) {
 					probes.erase(
 						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag; })
 						, probes.end());
@@ -821,7 +821,7 @@ public:
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
 					}
 				}
-				else if (a->assigned_harvesters > 3) {
+				else if (a->assigned_harvesters > 3 || nexus->ideal_harvesters - nexus->assigned_harvesters > 2) {
 					probes.erase(
 						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag; })
 						, probes.end());
@@ -1205,7 +1205,7 @@ private:
 
 	void TryBuildUnits() {
 		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50) {
-			if (nexus->assigned_harvesters < nexus->ideal_harvesters) {
+			if (nexus->assigned_harvesters < nexus->ideal_harvesters+1) {
 				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
 				minerals -= 50;
 				supplyleft -= 1;
@@ -1660,10 +1660,9 @@ private:
 	const Unit* FindNearestVespeneGeyser(const Point2D& start, const Units & ass) {
 		// an empty geyser i.e. not occupied by an assimilator, but with gas left in it
 		auto geysers = Observation()->GetUnits(Unit::Alliance::Neutral, [ass](const Unit & u) {
-			if (!IsVespene(u.unit_type) || u.vespene_contents==0) {
+			if ( u.vespene_contents==0) {
 				return false;
-			}
-
+			}			
 			for (const auto & a : ass) {
 				if (Distance2D(a->pos, u.pos) < 1.0f) {
 					return false;
