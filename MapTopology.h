@@ -3,6 +3,7 @@
 #include <vector>
 #include "sc2api/sc2_map_info.h"
 #include "sc2api/sc2_agent.h"
+#include "sc2api/sc2_unit.h"
 
 
 class MapTopology
@@ -18,10 +19,11 @@ class MapTopology
 	int ourBaseStartLocIndex;
 	// Calculates expansion locations, this call can take on the order of 100ms since it makes blocking queries to SC2 so call it once and cache the reults.
 	// it is modified from original provided by sc2API
-	static std::vector<sc2::Point3D> CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
+	static std::vector<std::pair<sc2::Point3D, sc2::Units > > CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
 public:
 	// raw cache for locations computed for expansions
 	std::vector<sc2::Point3D> expansions;
+	std::vector<sc2::Units> resourcesPer;
 	// a main is a starting location
 	// a nat is the place you would put your second CC normally
 	// a proxy is an expo that is not immediately obvious to defender, but not too far
@@ -30,6 +32,7 @@ public:
 	enum Player {ally, enemy};
 	// note asking for pocket will yield nat if no pocket found
 	const sc2::Point3D & getPosition(Player p, BaseType b) const;
+	int getExpansionIndex(Player p, BaseType b) const;
 	// true iff we found pocket  bases
 	bool hasPockets() const;
 	// looking for a base ?
