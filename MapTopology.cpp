@@ -174,22 +174,27 @@ bool MapTopology::hasPockets() const {
 }
 
 const sc2::Point3D & MapTopology::getPosition(Player p, BaseType b) const {
+	int id = getExpansionIndex(p,b);
+	return expansions[id];
+}
+int MapTopology::getExpansionIndex(Player p, BaseType b) const {
 	int id = p == ally ? ourBaseStartLocIndex : (ourBaseStartLocIndex == 0) ? 1 : 0;
 
 	switch (b) {
-	case nat: return expansions[naturalBases[id]];
-	case proxy: return expansions[proxyBases[id]];
+	case nat: return naturalBases[id];
+	case proxy: return proxyBases[id];
 	case pocket:
 		if (hasPockets()) {
-			return expansions[pocketBases[id]];
+			return pocketBases[id];
 		}
 		else {
-			return expansions[naturalBases[id]];
+			return naturalBases[id];
 		}
-	case main: 
-	default :	return expansions[mainBases[id]];
+	case main:
+	default:	return mainBases[id];
 	}
 }
+
 
 const Point3D & MapTopology::FindNearestBase(const Point3D& start) const {
 	float distance = std::numeric_limits<float>::max();
@@ -221,7 +226,7 @@ void MapTopology::debugMap(DebugInterface * debug) {
 
 	}
 
-	for (int startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
+	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
 		debug->DebugTextOut("main" + std::to_string(startloc), expansions[mainBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 		debug->DebugTextOut("nat" + std::to_string(startloc), expansions[naturalBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 		if (pocketBases[startloc] != -1) debug->DebugTextOut("pocket" + std::to_string(startloc), expansions[pocketBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
