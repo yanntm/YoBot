@@ -833,13 +833,60 @@ public:
 			}
 		}
 
-//		AllocateAttackers();
+		/*
+		Units zeals =  Observation()->GetUnits(Unit::Alliance::Self, [](const Unit & u) { return  u.unit_type == UNIT_TYPEID::PROTOSS_ZEALOT ; });
+		if (!zeals.empty()) {
+			sortByDistanceTo(zeals, target);
+			AllocateAttackers((*zeals.begin())->pos);
+		}
+		*/
+		//if (frame % 100 == 0)
+			
+		// pokeMap();
 	
 	}
 
+	void pokeMap() {
+		auto base = map.getPosition(MapTopology::enemy, MapTopology::main);
+		// build the distance matrix between units
+		std::vector<Point3D> points;
+		points.reserve(200);
+		float delta = 2;
+		float delta2 = delta / sqrt(2);
+		
 
-	void AllocateAttackers(const Point3D & npos) {
-		Units inRange = Observation()->GetUnits([npos](const Unit & u) { return  !u.is_flying && Distance2D(u.pos, npos) < 15.0f; });
+		std::vector <sc2::QueryInterface::PathingQuery> queries;
+
+		for (int x = -10; x <= 10; x+=2) {
+			for (int y = -10; y <= 10; y+=2) {
+				auto pos = base + Point3D(x, y, 0);
+				std::vector<Point2D> outs = {
+					pos + Point2D(delta,0.0f), pos + Point2D(0.0f,delta) , pos + Point2D(-delta,0.0f) , pos + Point2D(0.0f,-delta) ,
+					pos + Point2D(delta2,delta2), pos + Point2D(delta2,-delta2) ,pos + Point2D(-delta2,delta2) , pos + Point2D(-delta2,-delta2)
+				};
+				for (const auto & p : outs) {
+					queries.push_back({ 0, pos, p });
+				}
+				points.emplace_back(pos);
+			}
+		}
+		
+		// send the query and wait for answer
+		std::vector<float> distances = Query()->PathingDistance(queries);
+#ifdef DEBUG
+		//if (debug != nullptr) {
+		int i = 0;
+		for (const auto & q : queries) {
+			if (distances[i]==0.0f) 
+				Debug()->DebugLineOut(Point3D(q.start_.x, q.start_.y, base.z +0.5f), Point3D(q.end_.x, q.end_.y, base.z + 0.5f), distances[i] == 0.0f ? Colors::Red : Colors::Green);
+			i++;
+		}
+#endif
+		
+	}
+
+	void AllocateAttackers(const Point2D & npos) {
+		Units inRange = Observation()->GetUnits([npos](const Unit & u) { return  u.alliance != Unit::Alliance::Neutral && !u.is_flying && Distance2D(u.pos, npos) < 20.0f ; });
 		
 		// indexes go to here
 		Units allUnits;
@@ -900,9 +947,23 @@ public:
 			points.push_back(u->pos);
 		}
 		auto matrix = computeDistanceMatrix(points,Query());
-
+#ifdef DEBUG
+		//if (debug != nullptr) {
+		auto sz = points.size();
+		if (sz >= 4) {
+			for (int i = 0; i < sz; i++) {
+				for (int j = i + 1; j < sz; j++) {
+					auto color = (matrix[i*sz + j] > 100000.0f) ? Colors::Red : Colors::Green;
+					Debug()->DebugLineOut(points[i] + Point3D(0, 0, 0.5f), points[j] + Point3D(0, 0, 0.5f), color);
+					Debug()->DebugTextOut(std::to_string(matrix[i*sz + j]), (points[i] + Point3D(0, 0, 0.2f) + points[j]) / 2, Colors::Green);
+				}
+			}
+			Debug()->SendDebug();
+		}
+		//}
+		
+#endif // DEBUG
 		// std::vector<int> targets = allocateTargets(probes, mins, [](const Unit *u) { return  2; });
-
 /*		for (int att = 0, e = targets.size(); att < e; att++) {
 			if (targets[att] != -1) {
 				Actions()->UnitCommand(probes[att], ABILITY_ID::SMART, mins[targets[att]]);
