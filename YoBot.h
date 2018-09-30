@@ -333,7 +333,7 @@ public:
 		auto dprox = Distance2D(proxy, outs[best]);
 		int bestproxout = best;
 		for (int i = 0; i < scores.size(); i++) {
-			if (scores[i] > 0.5 * scores[best]) {
+			if (scores[i] > 0.8 * scores[best]) {
 				nbouts ++;
 				auto dpout = Distance2D(proxy, outs[i]);
 				if (dpout < dprox) {
@@ -592,8 +592,8 @@ public:
 			
 			map.debugMap(Debug());
 
-			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, -2, .5), Colors::Red);
-			Debug()->DebugTextOut("CURtarget", proxy + Point3D(0, 2, .5), Colors::Red);
+			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, 0, 2.0f), Colors::Yellow);
+			Debug()->DebugTextOut("CURtarget", target + Point3D(0, 0, 2.0f), Colors::Yellow);
 
 			for (const auto & u : Observation()->GetUnits(Unit::Alliance::Self)) {
 				if (!u->orders.empty()) {
