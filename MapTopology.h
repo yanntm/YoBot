@@ -43,3 +43,10 @@ public:
 	void debugMap(sc2::DebugInterface * debug);
 };
 
+namespace sc2util {
+	// query pathing grid at given point
+	bool Pathable(const sc2::GameInfo & info, const sc2::Point2D & point);
+	// query build grid at given point
+	bool Placement(const sc2::GameInfo & info, const sc2::Point2D & point);
+	bool PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI);
+}
