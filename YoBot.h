@@ -238,7 +238,8 @@ public:
 		}
 	}
 
-	bool evade(const Unit * unit) {
+	bool evade(const Unit * unit, Point2D goal) {
+		
 		auto nmies = FindEnemiesInRange(unit->pos, 6.0f);
 		if (nmies.empty()) {
 			return false;
@@ -321,6 +322,13 @@ public:
 					scores[outid] *= -1;
 			}
 		}
+		for (int outid = 1; outid < outs.size(); outid++) {
+			float next = Distance2D(goal, outs[outid]); 
+			if (next >= 20.0f ) {
+				if (scores[outid] > 0)
+					scores[outid] *= 2/3;
+			}
+		}
 
 		int best = 0;
 		for (int i = 0; i < scores.size(); i++) {
@@ -330,16 +338,17 @@ public:
 		}
 
 		int nbouts = 0;
-		auto dprox = Distance2D(proxy, outs[best]);
+		//auto dprox = Distance2D(goal, outs[best]);
 		int bestproxout = best;
+		
 		for (int i = 0; i < scores.size(); i++) {
 			if (scores[i] > 0.8 * scores[best]) {
 				nbouts ++;
-				auto dpout = Distance2D(proxy, outs[i]);
+			/*	auto dpout = Distance2D(goal, outs[i]);
 				if (dpout < dprox) {
 					bestproxout = i;
 					dprox = dpout;
-				}
+				}*/
 			}
 		}
 
@@ -357,8 +366,7 @@ public:
 			}
 			Debug()->DebugTextOut(std::to_string(scores[i]), Point3D(out.x, out.y, unit->pos.z + 0.1f));
 		}
-		Debug()->SendDebug();
-
+		Debug()->SendDebug();		
 #endif // DEBUG
 		auto closest = Distance2D(unit->pos, (*nmies.begin())->pos);
 		if (nbouts <= 2 && ( unit->shield == 0 || closest <= 1.5f) && nexus != nullptr) {
@@ -377,7 +385,7 @@ public:
 	virtual void OnUnitAttacked(const Unit* unit) final {
 		if (unit == bob && unit->shield <= 5) {
 			// evasive action
-			evade(bob);
+			evade(bob,proxy);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
 			auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			int att = 0;
@@ -577,7 +585,13 @@ public:
 	}
 
 
+	std::vector<Point2D> findLocationsForBuilding(Point2D pos, int floorsize, int radius) {
+		const GameInfo& game_info = Observation()->GetGameInfo();
+		 
+		std::vector<Point2D> vec;
 
+		return vec;
+	}
 
 	
 	int minerals = 0;
@@ -648,9 +662,12 @@ public:
 		//sc2::SleepFor(20);
 
 		bool evading = false;
-		if (bob != nullptr && frame%6==0) {
+		if (bob != nullptr && frame%3==0) {
 			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE || bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
-				evading = evade(bob);
+				evading = evade(bob,proxy);
+				if (!evading && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) {
+					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
+				}
 			}
 		}
 
@@ -1574,40 +1591,43 @@ private:
 			}
 		}
 
-		float rx = GetRandomScalar();
-		float ry = GetRandomScalar();
 
 		float maxdist = 15.0f;
 		if (FindEnemiesInRange(bob->pos, 8.0f).size() >= 2 || evading) {
-			maxdist = 5.0f;
+			maxdist = 3.0f;
 		}
-		Point2D candidate = Point2D(bob->pos.x + rx * maxdist, bob->pos.y + ry *maxdist);
-		std::vector<sc2::QueryInterface::PlacementQuery> queries;
-		queries.reserve(5);
-		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate));
-		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(1, 0)));
-		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(0, 1)));
-		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(-1, 0)));
-		queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(0, -1)));
+		// try ten positions
+		for (int i = 0; i < 10; i++) {
+			float rx = GetRandomScalar();
+			float ry = GetRandomScalar();		
+			Point2D candidate = Point2D(bob->pos.x + rx * maxdist, bob->pos.y + ry * maxdist);
+			std::vector<sc2::QueryInterface::PlacementQuery> queries;
+			queries.reserve(5);
+			queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate));
+			queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(1, 0)));
+			queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(0, 1)));
+			queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(-1, 0)));
+			queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, candidate + sc2::Point2D(0, -1)));
 
-		auto q = Query();
-		auto resp = q->Placement(queries);
+			auto q = Query();
+			auto resp = q->Placement(queries);
 
-		int spaces = 0;
-		if (resp[0]) {
-			for (auto & b : resp) {
-				if (b) {
-					spaces++;
+			int spaces = 0;
+			if (resp[0]) {
+				for (auto & b : resp) {
+					if (b) {
+						spaces++;
+					}
 				}
 			}
+
+			if (spaces > 2)
+				Actions()->UnitCommand(bob,
+					tobuild,
+					candidate);
+
+			return true;
 		}
-
-		if (spaces > 2)
-			Actions()->UnitCommand(bob,
-				tobuild,
-				candidate);
-
-		return true;
 	}
 
 	void dealWithFlying() {
