@@ -136,6 +136,7 @@
     <ClCompile Include="MapTopology.cpp" />
     <ClCompile Include="Snippets.cpp" />
     <ClCompile Include="UnitTypes.cpp" />
+    <ClCompile Include="YoAgent.cpp" />
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
   <ItemGroup>
