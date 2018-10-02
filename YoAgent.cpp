@@ -1,5 +1,7 @@
 #include "YoAgent.h"
 
+using namespace sc2;
+
 void YoAgent::OnStep()
 {
 	// do the updates
@@ -8,6 +10,26 @@ void YoAgent::OnStep()
 	OnYoStep();
 	// handle order queue
 	dispatchOrders();
+}
+
+void YoAgent::OnUnitEnterVision(const Unit * u)
+{
+	if (u->alliance == Unit::Alliance::Enemy) {
+		enemies.insert_or_assign(u->tag, u);
+	}
+
+}
+
+void YoAgent::OnUnitDestroyed(const sc2::Unit * unit)
+{
+	if (unit->alliance == Unit::Alliance::Enemy) {
+		enemies.erase(unit->tag);
+	}
+}
+
+const YoAgent::UnitsMap & YoAgent::allEnemies() const
+{
+	return enemies;
 }
 
 void YoAgent::updateFromObservation(const sc2::ObservationInterface * obs)
