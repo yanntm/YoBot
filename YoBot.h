@@ -594,11 +594,9 @@ public:
 	}
 
 	
-	int minerals = 0;
-	int gas = 0;
-	int supplyleft = 0;
 
-	virtual void OnStep() final {
+
+	virtual void OnYoStep() final {
 
 		frame++;
 #ifdef DEBUG
@@ -665,7 +663,7 @@ public:
 		if (bob != nullptr && frame%3==0) {
 			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE || bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
 				evading = evade(bob,proxy);
-				if (!evading && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) {
+				if (!evading && (! bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) ) {
 					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
 				}
 			}
@@ -706,9 +704,6 @@ public:
 
 
 
-		minerals = Observation()->GetMinerals();
-		gas = Observation()->GetVespene();
-		supplyleft = Observation()->GetFoodCap() - Observation()->GetFoodUsed();
 
 		
 		if (bob != nullptr && (nexus==nullptr || nexus->shield / nexus->shield_max < 0.9f) ) {
