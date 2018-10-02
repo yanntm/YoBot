@@ -106,7 +106,7 @@ public:
 	virtual void OnUnitCreated(const Unit* unit) final {
 		if (IsArmyUnitType(unit->unit_type)) {						
 			if (unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY) {
-				for (auto u : enemies) {
+				for (auto u : allEnemies()) {
 					if (u.second->is_flying) {
 						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, u.second->pos);
 						break;
@@ -323,10 +323,10 @@ public:
 			}
 		}
 		for (int outid = 1; outid < outs.size(); outid++) {
-			float next = Distance2D(goal, outs[outid]); 
-			if (next >= 20.0f ) {
+			float next = Distance2D(goal, outs[outid]);
+			if (next >= 20.0f) {
 				if (scores[outid] > 0)
-					scores[outid] *= 2/3;
+					scores[outid] *= 2 / 3;
 			}
 		}
 
@@ -470,6 +470,10 @@ public:
 	}
 
 	virtual void OnUnitEnterVision(const Unit* u) final {
+		int cur = estimateEnemyStrength();
+		YoAgent::OnUnitEnterVision(u);
+		int next = estimateEnemyStrength();
+
 		if (target == proxy && u->alliance == Unit::Alliance::Enemy && u->health_max >= 200 && !u->is_flying) {
 			auto pottarget = map.FindNearestBase(u->pos);
 			if (Distance2D(pottarget, target) < 20) {
@@ -482,12 +486,8 @@ public:
 				OnUnitIdle(scout);
 			}
 		}
-		int cur = estimateEnemyStrength();
-		if (u->alliance == Unit::Alliance::Enemy) {
-			enemies.insert_or_assign(u->tag,u);
-		}
-		int next = estimateEnemyStrength();
-
+		
+		
 		if (next >= 5 && cur < 5) {
 			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
 				OnUnitIdle(u);
@@ -495,11 +495,8 @@ public:
 		}
 	}
 
-	virtual void OnUnitDestroyed(const Unit* unit) final {
-		if (unit->alliance == Unit::Alliance::Enemy) {
-			enemies.erase(unit->tag);
-		}
-		
+	virtual void OnUnitDestroyed(const Unit* unit) final {		
+		YoAgent::OnUnitDestroyed(unit);
 		if (bob == unit) {
 			bob = nullptr;
 			for (auto probe : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
@@ -1224,7 +1221,7 @@ public:
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_VOIDRAY: {
-			for (auto u : enemies) {
+			for (auto u : allEnemies()) {
 				if (u.second->is_flying) {
 					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, u.second->pos);
 					break;
@@ -1259,7 +1256,7 @@ private:
 	
 	
 	bool baseRazed ;
-	std::unordered_map<Tag,const Unit *> enemies;
+	
 	long int frame = 0;
 	Race enemyRace;
 
@@ -1432,7 +1429,7 @@ private:
 				bool good = false;
 				int iter = 0;
 				auto candidate = Point2D(proxy.x + rx * (8.0f + gws.size() * 2), proxy.y + ry * (8.0f + gws.size() * 2));
-				if (evading) {
+				if (evading || needSupport) {
 					candidate = Point2D(unit_to_build->pos.x + rx * 3.0f, proxy.y + ry * 3.0f);
 				}
 				while (!good && iter++ < 25) {
@@ -1620,7 +1617,7 @@ private:
 
 	int estimateEnemyStrength() {
 		int str = 0;
-		for (auto u : enemies) {
+		for (auto u : allEnemies()) {
 			if (IsArmyUnitType(u.second->unit_type)) {
 				str++;
 			}				
