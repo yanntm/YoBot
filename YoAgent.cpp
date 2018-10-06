@@ -42,7 +42,18 @@ void YoAgent::updateFromObservation(const sc2::ObservationInterface * obs)
 
 void YoAgent::dispatchOrders()
 {
+	std::unordered_map<sc2::Tag, const Order *> finalorders;
 	for (const Order & order : orders) {
+		auto it = finalorders.find(order.subject->tag);
+		if (it == finalorders.end()) {
+			finalorders[order.subject->tag] = &order;
+		} else if ( it->second->priority >= order.priority) {
+				// replace order
+				it->second = &order;
+		}
+	}
+	for (const auto & entry : finalorders) {
+		const Order & order = *entry.second;
 		if (order.tag == Order::SELF) {
 			Actions()->UnitCommand(order.subject, order.ability);
 		} else if (order.tag == Order::UNIT) {
