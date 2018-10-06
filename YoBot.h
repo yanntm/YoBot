@@ -317,11 +317,20 @@ public:
 		// neg score of not truly reachable
 		for (int outid = 1; outid < outs.size(); outid++) {
 			float next = distances[outs.size() * (nmies.size() + 2) + outid];
-			if (next == 0 || next > 0.7 * delta) {
+			int left = outid + 1 == outs.size() ? 1 : outid + 1;
+			int right = outid - 1 == 0 ? outs.size() - 1 : outid - 1;
+
+			float leftd = distances[outs.size() * (nmies.size() + 2) + left];
+			float rightd = distances[outs.size() * (nmies.size() + 2) + right];
+			// allow some small obstacle, e.g. going close to a wall or geyser
+			if ((next == 0 || next > 0.7 * delta)
+				&& (leftd == 0 || leftd > 0.7 * delta)
+				&& (rightd == 0 || rightd > 0.7 * delta)
+				) {
 				if (scores[outid] > 0)
 					scores[outid] *= -1;
 			}
-		}
+		}		
 		for (int outid = 1; outid < outs.size(); outid++) {
 			float next = Distance2D(goal, outs[outid]);
 			if (next >= 20.0f) {
