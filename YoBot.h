@@ -90,7 +90,7 @@ public:
 			else if (rnd == 3) {
 				proxy = map.getPosition(MapTopology::enemy, MapTopology::pocket); 
 			}
-
+			//proxy = map.getPosition(MapTopology::ally, MapTopology::nat);
 			//proxy = (.67 * target + .33*nexus->pos);
 			//proxy = FindFarthestBase(nexus->pos,target);
 			//proxy = FindNearestBase(proxy);
@@ -901,7 +901,7 @@ public:
 		}
 		harvesting.OnStep(har, Actions());
 #ifdef DEBUG
-		harvesting.PrintDebug(Debug());
+		harvesting.PrintDebug(Debug(),Observation());
 #endif
 
 	}
@@ -1216,7 +1216,7 @@ private:
 
 	void TryBuildUnits() {
 		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50) {
-			if (nexus->assigned_harvesters < nexus->ideal_harvesters+1) {
+			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters() +1) {
 				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
 				minerals -= 50;
 				supplyleft -= 1;
@@ -1480,7 +1480,7 @@ private:
 		return true;
 	}
 
-	const int criticalZeal = 7;
+	const int criticalZeal =7;
 	const int maxZeal = 18;
 
 	bool TryBuildBarracks(bool evading = false) {
