@@ -1,4 +1,5 @@
 #include <unordered_set>
+#include <iostream>
 #include "HarvesterStrategy.h"
 
 using namespace std;
@@ -283,5 +284,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug)
 		avg /= sz;
 	}
 	debug->DebugTextOut("Harvested :" + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
+	if (frame == 3000) {
+		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
+	}
 }
 #endif
