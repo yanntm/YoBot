@@ -8,6 +8,7 @@
 
 #include "MapTopology.h"
 #include <deque>
+#include <unordered_map>
 
 #define DllExport   __declspec( dllexport )  
 
