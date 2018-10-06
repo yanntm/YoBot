@@ -133,6 +133,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DistUtil.cpp" />
+    <ClCompile Include="HarvesterStrategy.cpp" />
     <ClCompile Include="MapTopology.cpp" />
     <ClCompile Include="Snippets.cpp" />
     <ClCompile Include="UnitTypes.cpp" />
@@ -141,6 +142,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DistUtil.h" />
+    <ClInclude Include="HarvesterStrategy.h" />
     <ClInclude Include="MapTopology.h" />
     <ClInclude Include="UnitTypes.h" />
     <ClInclude Include="LadderInterface.h" />
