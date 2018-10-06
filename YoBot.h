@@ -8,8 +8,9 @@
 #include "DistUtil.h"
 
 #include "YoAgent.h"
-
+#include "HarvesterStrategy.h"
 #include <valarray>
+#include <unordered_set>
 
 //#include "Strategys.h"
 #define DllExport   __declspec( dllexport )  
@@ -18,6 +19,7 @@ using namespace sc2util;
 
 class YoBot : public YoAgent {
 public:
+	HarvesterStrategy harvesting;
 
 	virtual void OnGameStart() final {
 		std::cout << "YoBot will kill you!" << std::endl;
@@ -26,7 +28,7 @@ public:
 		const ObservationInterface* observation = Observation();
 		frame = 0;
 		nexus = nullptr;
-		auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
+		auto list = Observation()->GetUnits(Unit::Alliance::Self, [](auto u) { return IsCommandStructure(u.unit_type); });
 		nexus = list.front();
 
 
@@ -35,9 +37,11 @@ public:
 		Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
 
 		auto probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-		bob = probes.front();
+		bob = probes.back();
+		probes.pop_back();
 		
-		TrySpreadProbes();
+		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally,MapTopology::main)]);
+		harvesting.OnStep(probes,Actions());
 
 		const GameInfo& game_info = Observation()->GetGameInfo();
 		
@@ -736,6 +740,26 @@ public:
 				}
 			}
 		}
+		std::unordered_set<Tag> harvesters;
+		for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
+			if (p != bob && p != scout) {
+				bool busy = false;
+				if (IsCarryingVespene(*p))
+					continue;
+				if (p->engaged_target_tag != 0 && Observation()->GetUnit(p->engaged_target_tag)->vespene_contents != 0)
+					continue;
+				for (auto o : p->orders) {
+					if (o.ability_id != ABILITY_ID::MOVE && o.ability_id != ABILITY_ID::HARVEST_GATHER && o.ability_id != ABILITY_ID::HARVEST_RETURN) {
+						busy = true;
+						break;
+					}
+					
+				}
+				if (!busy)
+					harvesters.insert(p->tag);
+			}
+		}		
+
 		Units pylons = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PYLON));
 		if (minerals >= 100 && Observation()->GetFoodCap() == 15 && pylons.empty() && nexus != nullptr) {
 			const Unit* min = FindNearestMineralPatch(nexus->pos);
@@ -747,6 +771,7 @@ public:
 					continue;
 				if (p != bob) {
 					UnitCommand(p, ABILITY_ID::BUILD_PYLON, ptarg);
+					harvesters.erase(p->tag);
 					break;
 				}
 			}
@@ -797,8 +822,11 @@ public:
 		};
 		
 
-
-		TryImmediateAttack(Observation()->GetUnits(Unit::Alliance::Self, [](const Unit & u) { return u.weapon_cooldown == 0; }));
+		auto ourUnits = Observation()->GetUnits(Unit::Alliance::Self, [](const Unit & u) { return u.weapon_cooldown == 0; });
+		auto list = TryImmediateAttack(ourUnits);
+		for (auto index : list) {
+			harvesters.erase(ourUnits[index]->tag);
+		}
 		
 		if (nexus != nullptr && frame % 3 == 0) {
 			auto min = FindNearestMineralPatch(nexus->pos);
@@ -819,10 +847,11 @@ public:
 				}
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
-			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( nexus->ideal_harvesters - nexus->assigned_harvesters < 3 || minerals >= 500)) {
+			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
 				auto g = FindNearestVespeneGeyser(nexus->pos,ass);
 				if (!probes.empty() && g != nullptr) {
 					auto p = chooseClosest(g, probes);
+					harvesters.erase(p->tag);
 					Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
 					Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
 					minerals -= 75;
@@ -832,17 +861,18 @@ public:
 				if (a->build_progress < 1.0f) {
 					continue;
 				}
-				if (a->assigned_harvesters < 3 && nexus != nullptr && ( nexus->ideal_harvesters - nexus->assigned_harvesters < 3 || minerals >=200)) {
+				if (a->assigned_harvesters < 3 && nexus != nullptr && (harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() < 3 || minerals >=200)) {
 					probes.erase(
 						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag; })
 						, probes.end());
 					
 					if (!probes.empty()) {
 						auto p = chooseClosest(a, probes);
+						harvesters.erase(p->tag);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
 					}
 				}
-				else if (a->assigned_harvesters > 3 || nexus->ideal_harvesters - nexus->assigned_harvesters > 2) {
+				else if (a->assigned_harvesters > 3 || harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() > 2) {
 					probes.erase(
 						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag; })
 						, probes.end());
@@ -864,7 +894,16 @@ public:
 		//if (frame % 100 == 0)
 			
 		// pokeMap();
-	
+		Units har;
+		har.reserve(harvesters.size());
+		for (auto t : harvesters) {
+			har.push_back(Observation()->GetUnit(t));
+		}
+		harvesting.OnStep(har, Actions());
+#ifdef DEBUG
+		harvesting.PrintDebug(Debug());
+#endif
+
 	}
 
 	void pokeMap() {
@@ -994,123 +1033,9 @@ public:
 
 	}
 
-	std::vector<int> allocateTargets(const Units & probes, const Units & mins, int (*toAlloc) (const Unit *), bool keepCurrent=false) {
-		std::unordered_map<Tag, int> targetIndexes;
-		for (int i = 0, e = mins.size(); i < e; i++) {
-			targetIndexes.insert_or_assign(mins[i]->tag, i);
-		}
-		std::unordered_map<Tag, int> unitIndexes;
-		for (int i = 0, e = probes.size(); i < e; i++) {
-			targetIndexes.insert_or_assign(probes[i]->tag, i);
-		}
-		std::vector<int> targets;
-		targets.resize(probes.size(), -1);
 
-		std::vector<std::vector<int>> attackers;
-		attackers.resize(mins.size());
 
-		//std::remove_if(mins.begin(), mins.end(), [npos](const Unit * u) { return  Distance2D(u->pos, npos) > 6.0f;  });
-		std::vector<int> freeAgents;
-		std::vector<int> freeMins;
-
-		if (keepCurrent) {
-			int i = 0;
-			for (const auto & u : probes) {
-				if (!u->orders.empty()) {
-					const auto & o = u->orders.front();
-					if (o.target_unit_tag != 0) {
-						auto pu = targetIndexes.find(o.target_unit_tag);
-						if (pu == targetIndexes.end()) {
-							targets[i] = -1;
-						}
-						else {
-							int ind = pu->second;
-							targets[i] = ind;
-							attackers[ind].push_back(i);
-						}
-					}
-				}
-				i++;
-			}
-			for (int i = 0, e = mins.size(); i < e; i++) {
-				auto sz = attackers[i].size();
-				int goodValue = toAlloc(mins[i]);
-				if (sz > goodValue) {
-					auto start = mins[i]->pos;
-					std::sort(attackers[i].begin(), attackers[i].end(), [start, probes](int a, int b) { return DistanceSquared2D(start, probes[a]->pos) < DistanceSquared2D(start, probes[b]->pos); });
-
-					for (int j = goodValue, e = attackers[i].size(); j < e; j++) {
-						freeAgents.push_back(attackers[i][j]);
-						targets[attackers[i][j]] = -1;
-					}
-					attackers[i].resize(goodValue);
-
-				}
-				else if (sz < goodValue) {
-					freeMins.push_back(i);
-				}
-			}
-		}
-		else {
-			for (int i = 0, e = probes.size(); i < e; i++) {
-				freeAgents.push_back(i);
-			}
-			for (int i = 0, e = mins.size(); i < e; i++) {
-				freeMins.push_back(i);
-			}
-		}
-
-		
-		
-
-		if (!freeAgents.empty()) {
-			Point2D cogp = probes[freeAgents.front()]->pos;
-			int div = 1;
-			for (auto it = ++freeAgents.begin(); it != freeAgents.end(); ++it) {
-				cogp += probes[*it]->pos;
-				div++;
-			}
-			cogp /= div;
-
-			std::sort(freeAgents.begin(), freeAgents.end(), [cogp, probes](int a, int b) { return DistanceSquared2D(cogp, probes[a]->pos) < DistanceSquared2D(cogp, probes[b]->pos); });
-		}
-		while (!freeMins.empty() && !freeAgents.empty()) {
-			int choice = freeAgents.back();
-			freeAgents.pop_back();
-			auto start = probes[choice]->pos;
-			std::sort(freeMins.begin(), freeMins.end(), [start, mins](int a, int b) { return DistanceSquared2D(start, mins[a]->pos) > DistanceSquared2D(start, mins[b]->pos); });
-
-			int mineral = freeMins.back();
-			freeMins.pop_back();
-
-			
-			attackers[mineral].push_back(choice);
-			targets[choice] = mineral;
-			if (attackers[mineral].size() < toAlloc(mins[mineral])) {
-				freeMins.insert(freeMins.begin(), mineral);
-			}
-
-		}
-
-		return targets;
-
-	}
-
-	void TrySpreadProbes() {
-		auto npos = nexus->pos;
-		
-		Units mins = Observation()->GetUnits(Unit::Alliance::Neutral, [npos](const Unit & u) { return  IsMineral(u.unit_type) &&   Distance2D(u.pos, npos) < 15.0f ; });
-		Units probes = Observation()->GetUnits(Unit::Alliance::Self, [npos](const Unit & u) { return  u.unit_type == UNIT_TYPEID::PROTOSS_PROBE && Distance2D(u.pos, npos) < 15.0f ; });
-		
-		std::vector<int> targets = allocateTargets(probes, mins, [](const Unit *u) { return  2; });
-
-		for (int att = 0, e = targets.size(); att < e; att++) {
-			if (targets[att] != -1) {
-				Actions()->UnitCommand(probes[att], ABILITY_ID::SMART, mins[targets[att]]);
-			}
-		}
-
-	}
+	
 
 	float getRange(const Unit *z) {
 		auto arms = Observation()->GetUnitTypeData().at(static_cast<uint32_t>(z->unit_type)).weapons;
@@ -1129,9 +1054,11 @@ public:
 		return attRange;
 	}
 
-	void TryImmediateAttack(const Units & zeals) {
-		
+	std::vector<int> TryImmediateAttack(const Units & zeals) {
+		std::vector<int> attacking;
+		int index = -1;
 		for (const auto & z : zeals) {
+			index++;
 			// weak drones only do this if close to nexus
 			if (z->unit_type == UNIT_TYPEID::PROTOSS_PROBE &&  ( (z->shield + z->health <= 10) || (nexus==nullptr || Distance2D(nexus->pos, z->pos) > 5.0f) || z == bob)) {
 				continue;
@@ -1163,15 +1090,18 @@ public:
 				// requeue our previous order				
 				if (z->orders.empty()) {
 					Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);
+					attacking.push_back(index);
 				}
 				else {
 					auto order = z->orders.front();
 					Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);
 					sendUnitCommand(z, order, true);
+					attacking.push_back(index);
 				}
 				
 			}
 		}
+		return attacking;
 	}
 
 	// In your bot class.

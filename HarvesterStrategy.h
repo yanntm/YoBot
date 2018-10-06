@@ -29,10 +29,11 @@ class HarvesterStrategy
 		HarvestState harvest;
 		MovementState move;
 		OverlapState overlap;
+		bool had_mineral;
 	};
 	const sc2::Unit * nexus;
-	const sc2::Units minerals;
-	std::unordered_map<sc2::Tag, sc2::Tag> workerAssignedMinerals; //for each worker, which crystal are they assigned?
+	sc2::Units minerals;
+	std::unordered_map<sc2::Tag, int> workerAssignedMinerals; //for each worker, which crystal are they assigned?
 	std::unordered_map<sc2::Tag, sc2::Point2D> magicSpots; //for each crystal, where is the magic spot?
 	std::unordered_map<sc2::Tag, WorkerState> workerStates; //what each worker is doing ('task', not 'job')
 
@@ -40,17 +41,21 @@ class HarvesterStrategy
 	// update and cleanup workerStates, create & init states for new hires, cleanup guys that got fired
 	// i.e. maintenance operations on workerStates & workerAssignedMinerals
 	void updateRoster(const sc2::Units & current);
+	// compute a distribution/pairing of workers to minerals
+	void assignTargets(const sc2::Units & workers);
+	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, int(*toAlloc)(const sc2::Unit *), bool keepCurrent = false);
 public:
 	
 	int getIdealHarvesters();
 	int getCurrentHarvesters();
 
-	HarvesterStrategy(const sc2::Unit * nexus, const sc2::Units & minerals);
-	void OnStep(const sc2::Units & workers);
-	void OnUnitDestroyed(const sc2::Unit *dead);
+	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals);
+	
+	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions);
 
 #ifdef DEBUG
-	long totalMined; // total trips successfully done
+	long frame = 0;
+	long totalMined = 0; // total trips successfully done
 	std::vector<int> roundtrips; // accumulated probe timings
 	std::unordered_map<sc2::Tag, int> lastReturnedFrame; // timing per probe
 
