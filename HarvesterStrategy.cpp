@@ -77,6 +77,21 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 		}
 	}
 
+	for (auto it = minerals.begin() ; it != minerals.end(); ) {
+		if ((*it)->mineral_contents == 0) {
+			int index = it - minerals.begin(); 
+			it = minerals.erase(it);			
+			for (auto jt : workerAssignedMinerals) {
+				if (jt.second == index) {
+					jt.second = -1;
+				}
+			}
+		}
+		else {
+			++it;
+		}
+	}
+
 	if (rosterChange) {
 		assignTargets(current);
 	}
@@ -97,6 +112,7 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 {
 	this->nexus = nexus;
 	this->minerals=minerals;
+	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
 	for (auto targetMineral : minerals) {
 		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral);
 		magicSpots.insert_or_assign(targetMineral->tag, magicSpot);
@@ -124,6 +140,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 			auto old = it->second;
 			auto length = frame - old;
 			roundtrips.push_back(length);
+			lastTripTime[p->tag] = length;
 		}
 		lastReturnedFrame[p->tag] = frame;
 #endif
@@ -160,7 +177,15 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 
 void HarvesterStrategy::assignTargets(const Units & workers)
 {
-	std::vector<int> targets = allocateTargets(workers, minerals, [](const Unit *u) { return  2; });
+	auto pos = nexus->pos;
+	std::function<int(const Unit *)> func = [pos](const Unit *u) {
+		float d = Distance2D(u->pos, pos);
+		if (d <= 6.5f) return 2;
+		if (d <= 9.0f) return 3;
+		return (int)d / 5;
+	};
+
+	std::vector<int> targets = allocateTargets(workers, minerals, func	, workerAssignedMinerals);
 	for (int att = 0, e = targets.size(); att < e; att++) {
 		if (targets[att] != -1) {
 			workerAssignedMinerals[workers[att]->tag] = targets[att];			
@@ -168,7 +193,7 @@ void HarvesterStrategy::assignTargets(const Units & workers)
 	}
 }
 
-std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const Units & mins, int(*toAlloc) (const Unit *), bool keepCurrent) {
+std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const Units & mins, std::function<int(const Unit *)> & toAlloc, std::unordered_map<Tag, int> current) {
 	std::unordered_map<Tag, int> targetIndexes;
 	for (int i = 0, e = mins.size(); i < e; i++) {
 		targetIndexes.insert_or_assign(mins[i]->tag, i);
@@ -187,22 +212,17 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 	std::vector<int> freeAgents;
 	std::vector<int> freeMins;
 
-	if (keepCurrent) {
+	if (! current.empty()) {
 		int i = 0;
 		for (const auto & u : probes) {
-			if (!u->orders.empty()) {
-				const auto & o = u->orders.front();
-				if (o.target_unit_tag != 0) {
-					auto pu = targetIndexes.find(o.target_unit_tag);
-					if (pu == targetIndexes.end()) {
-						targets[i] = -1;
-					}
-					else {
-						int ind = pu->second;
-						targets[i] = ind;
-						attackers[ind].push_back(i);
-					}
-				}
+			auto it = current.find(u->tag);
+			if (it != current.end()) {
+				int ind = it->second;
+				targets[i] = ind;
+				attackers[ind].push_back(i);
+			}
+			else {
+				targets[i] = -1;
 			}
 			i++;
 		}
@@ -272,7 +292,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 
 
 #ifdef DEBUG
-void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug)
+void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs)
 {
 	double avg = 0;
 	if (!roundtrips.empty()) {
@@ -286,6 +306,9 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug)
 	debug->DebugTextOut("Harvested :" + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
 	if (frame == 3000) {
 		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
+	}
+	for (auto & e : lastTripTime) {
+		debug->DebugTextOut(std::to_string(e.second), obs->GetUnit(e.first)->pos + Point3D(0, 0, .2), Colors::Green);
 	}
 }
 #endif
