@@ -43,7 +43,7 @@ class HarvesterStrategy
 	void updateRoster(const sc2::Units & current);
 	// compute a distribution/pairing of workers to minerals
 	void assignTargets(const sc2::Units & workers);
-	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, int(*toAlloc)(const sc2::Unit *), bool keepCurrent = false);
+	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {});
 public:
 	
 	int getIdealHarvesters();
@@ -58,8 +58,8 @@ public:
 	long totalMined = 0; // total trips successfully done
 	std::vector<int> roundtrips; // accumulated probe timings
 	std::unordered_map<sc2::Tag, int> lastReturnedFrame; // timing per probe
-
-	void PrintDebug(sc2::DebugInterface * debug);
+	std::unordered_map<sc2::Tag, int> lastTripTime; // timing per probe
+	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
 #endif
 };
 
