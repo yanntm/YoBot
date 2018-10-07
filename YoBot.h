@@ -411,7 +411,7 @@ public:
 			}
 			
 			const auto & tpos = (nexus == nullptr) ? unit->pos : nexus->pos;
-			Units close = FindEnemiesInRange(tpos, 5);
+			Units close = FindEnemiesInRange(tpos, 6);
 
 			if (att < 2*close.size() && att <= list.size() *.75f ) {
 				if (bob != nullptr) list.erase(std::remove(list.begin(), list.end(), bob), list.end());
@@ -424,17 +424,22 @@ public:
 					sum += p->health + p->shield;
 				}
 				sum /= list.size();
-				// the probes with less than half of average life are pulled
-				list.erase(
-					std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2; })
-					,list.end()); 
+				
 				sortByDistanceTo(list, reaper->pos);
-				std::sort(list.begin(), list.end(), [](const Unit * a, const Unit *b) { return a->health + a->shield > b->health + b->shield; });
+				std::stable_sort(list.begin(), list.end(), [](const Unit * a, const Unit *b) { return a->health + a->shield > b->health + b->shield; });
 
+				// the probes with less than half of average life are pushed to end of selection
+				//list.erase(
+				std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2; });
+				//	,list.end()); 
+				
+				// we want new attackers to be mobilized
+				std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return ! p->orders.empty() && p->orders[0].ability_id == ABILITY_ID::ATTACK_ATTACK; });
+				
 				if (list.size() > 3) 
 					list.resize(3);
 				if (reaper != nullptr) {
-					if (close.size() == 1 && reaper->unit_type == UNIT_TYPEID::TERRAN_SCV  || reaper->unit_type == UNIT_TYPEID::ZERG_DRONE || reaper->unit_type == UNIT_TYPEID::PROTOSS_PROBE) {
+					if (close.size() == 1 && IsWorkerType(reaper->unit_type)) {
 						list.resize(1);
 						//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 					}
@@ -459,11 +464,11 @@ public:
 				auto nmy = FindNearestEnemy(unit->pos);
 				auto vec = unit->pos - nmy->pos;
 
-				UnitCommand(unit, ABILITY_ID::MOVE, unit->pos + (vec / 2));
+				Actions()->UnitCommand(unit, ABILITY_ID::MOVE, unit->pos + (vec / 2));
 				//std::cout << "ouch run away" << std::endl;
 			}
 			else {
-				UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, unit->pos);
+				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, unit->pos);
 			}
 
 		}
@@ -538,16 +543,17 @@ public:
 		}
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
 			auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-			list.erase(std::remove(list.begin(), list.end(), bob), list.end());
+			list.erase(std::remove(list.begin(), list.end(), bob), list.end());			
 			auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
+			sortByDistanceTo(list, reaper->pos);
 			list.resize(3);
 			if (reaper != nullptr) {
 				if (IsWorkerType(reaper->unit_type)) {
-					list.resize(2);
+					//list.resize(2);
 					//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 				}
 				for (auto u : list) {
-					UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos,1);
+					Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos,1);
 				}
 			}
 		}
@@ -676,7 +682,7 @@ public:
 			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE || bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
 				evading = evade(bob,proxy);
 				if (!evading && (! bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) ) {
-					UnitCommand(bob, ABILITY_ID::MOVE, proxy);
+					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
 				}
 			}
 		}
@@ -746,14 +752,16 @@ public:
 				bool busy = false;
 				if (IsCarryingVespene(*p))
 					continue;
-				if (p->engaged_target_tag != 0 && Observation()->GetUnit(p->engaged_target_tag)->vespene_contents != 0)
-					continue;
+				if (p->engaged_target_tag != 0) {
+					auto target = Observation()->GetUnit(p->engaged_target_tag);
+					if (target != nullptr && target->vespene_contents != 0)
+						continue;
+				}
 				for (auto o : p->orders) {
 					if (o.ability_id != ABILITY_ID::MOVE && o.ability_id != ABILITY_ID::HARVEST_GATHER && o.ability_id != ABILITY_ID::HARVEST_RETURN) {
 						busy = true;
 						break;
-					}
-					
+					}					
 				}
 				if (!busy)
 					harvesters.insert(p->tag);
@@ -770,7 +778,7 @@ public:
 				if (i++ < 3)
 					continue;
 				if (p != bob) {
-					UnitCommand(p, ABILITY_ID::BUILD_PYLON, ptarg);
+					Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, ptarg);
 					harvesters.erase(p->tag);
 					break;
 				}
@@ -795,21 +803,21 @@ public:
 						if (list.size() != 0) {
 							int targetU = GetRandomInteger(0, list.size() - 1);
 							if (!list[targetU]->is_flying) {
-								UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, list[targetU]->pos);
+								Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, list[targetU]->pos);
 								continue;
 							}
 						}
 						if (estimated <= 5) {
 							int targetU = GetRandomInteger(0, map.expansions.size() - 1);
-							UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, map.expansions[targetU]);
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, map.expansions[targetU]);
 						}
 					}
 					else {
 						if (target != proxy) {
-							UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
 						}
 						else {
-							UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, defensePoint(proxy));
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, defensePoint(proxy));
 						}
 					}
 				}
@@ -834,16 +842,16 @@ public:
 			for (auto probe : probes) {
 				auto d = Distance2D(nexus->pos, probe->pos);
 				auto dm = Distance2D(nexus->pos, min->pos);
-				if ( probe != bob && probe != scout && dm <= 10.0f && d > 9.0f && ( probe->engaged_target_tag == 0 || !IsMineral(Observation()->GetUnit(probe->engaged_target_tag)->unit_type))) {					
-					UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
+				if ( probe != bob && probe != scout && dm <= 10.0f && d > 9.0f && ( probe->engaged_target_tag == 0 || Observation()->GetUnit(probe->engaged_target_tag) == nullptr ||  !IsMineral(Observation()->GetUnit(probe->engaged_target_tag)->unit_type))) {
+					Actions()->UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
 				}				
 			}
 			if (bob != nullptr && nexus != nullptr && probes.size() == 1 && minerals < 50 && estimated < 5) {
 				if (!IsCarryingMinerals(*bob)) {
-					UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, min);
+					Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, min);
 				}
 				else {
-					UnitCommand(bob, ABILITY_ID::HARVEST_RETURN);
+					Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_RETURN);
 				}
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
@@ -897,9 +905,19 @@ public:
 		Units har;
 		har.reserve(harvesters.size());
 		for (auto t : harvesters) {
-			har.push_back(Observation()->GetUnit(t));
+			auto u = Observation()->GetUnit(t);
+			if (u!=nullptr)
+				har.push_back(u);
 		}
-		harvesting.OnStep(har, Actions());
+
+		auto mainpos = map.getPosition(MapTopology::ally, MapTopology::main);
+		auto enemies = Observation()->GetUnits(Unit::Alliance::Enemy, [mainpos](const Unit & e) { return DistanceSquared2D(e.pos, mainpos) < 100.0f; });
+		if (enemies.size() >=  3) {
+			harvesting.OnStep(har, Actions(), true);
+		}
+		else {
+			harvesting.OnStep(har, Actions(), false);
+		}
 #ifdef DEBUG
 		harvesting.PrintDebug(Debug(),Observation());
 #endif
