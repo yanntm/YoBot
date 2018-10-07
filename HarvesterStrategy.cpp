@@ -1,13 +1,14 @@
 #include <unordered_set>
 #include <iostream>
 #include "HarvesterStrategy.h"
+#include "MapTopology.h"
 
 using namespace std;
 using namespace sc2;
 
 
 
-sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral) {
+sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus) {
 	auto minpos = mineral->pos;
 	auto pos1 = minpos + Point3D(-.25f, 0,0);
 	auto pos2 = minpos + Point3D(+.25f, 0,0);
@@ -24,6 +25,29 @@ sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral) {
 	vec /= Distance2D(Point2D(0, 0), vec);
 	// add to mineral position
 	return minpos + vec * 0.6f;
+}
+
+sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
+	auto minpos = mineral->pos;
+	auto pos1 = minpos + Point3D(-.25f, 0, 0);
+	auto pos2 = minpos + Point3D(+.25f, 0, 0);
+	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
+		minpos = pos1;
+	}
+	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos2)) {
+		minpos = pos2;
+	}
+
+	// a vector from nexus to mineral
+	auto vec = minpos - nexus->pos ;
+	// normalize
+	vec /= Distance2D(Point2D(0, 0), vec);
+	for (int i = 0; i < 20; i++) {
+		auto totry = nexus->pos + vec * (1.0f + 0.1f * i);
+		if (sc2util::Pathable(info, totry)) {
+			return totry;
+		}
+	}
 }
 
 void HarvesterStrategy::updateRoster(const sc2::Units & current)
@@ -84,6 +108,7 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 					jt.second = -1;
 				}
 			}
+			rosterChange = true;
 		}
 		else {
 			++it;
@@ -117,15 +142,17 @@ int HarvesterStrategy::getCurrentHarvesters()
 	return workerAssignedMinerals.size();
 }
 
-void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & minerals)	
+void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs)
 {
 	this->nexus = nexus;
 	this->minerals=minerals;
 	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
 	updateRoster(Units());
 	for (auto targetMineral : this->minerals) {
-		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral);
+		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral,nexus);
 		magicSpots.insert_or_assign(targetMineral->tag, magicSpot);
+		auto magicNexus = calcNexusMagicSpot(targetMineral,nexus,obs->GetGameInfo());
+		magicNexusSpots.insert_or_assign(targetMineral->tag, magicNexus);
 	}
 }
 
@@ -333,6 +360,20 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 		}
 
 	}
+	while (freeMins.empty() && !freeAgents.empty()) {
+		int choice = freeAgents.back();
+		freeAgents.pop_back();
+		// assign to far minerals first
+		// these have high index
+		int mineral = mins.size() - 1;
+		for (; mineral >= 0; mineral--) {
+			if (mineral==0 || attackers[mineral].size() <= attackers[mineral - 1].size()) {
+				targets[choice] = mineral;
+				attackers[mineral].push_back(choice);
+				break;
+			}
+		}		
+	}
 
 	return targets;
 
@@ -395,6 +436,14 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	}
 	ind = 0;
 	for (auto mp : magicSpots) {
+		auto & p = mp.second;
+		auto  m = obs->GetUnit(mp.first);
+		if (m != nullptr)
+			debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
+		ind++;
+	}
+	ind = 0;
+	for (auto mp : magicNexusSpots) {
 		auto & p = mp.second;
 		auto  m = obs->GetUnit(mp.first);
 		if (m != nullptr)
