@@ -40,7 +40,7 @@ public:
 		bob = probes.back();
 		probes.pop_back();
 		
-		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally,MapTopology::main)]);
+		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally,MapTopology::main)],Observation());
 		harvesting.OnStep(probes,Actions());
 
 		const GameInfo& game_info = Observation()->GetGameInfo();
@@ -1234,7 +1234,7 @@ private:
 
 	void TryBuildUnits() {
 		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50) {
-			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters() +1) {
+			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters()) {
 				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
 				if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
 					Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus);
