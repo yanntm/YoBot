@@ -32,17 +32,19 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 	unordered_set<Tag> now;
 	// create new workers
 	for (auto u : current) {
-		auto it = workerStates.find(u->tag);
-		if (it == workerStates.end()) {
-			if (IsCarryingMinerals(*u)) {
-				workerStates.insert({ u->tag, { ReturningMineral, Entering, Distinct , true } });
+		if (u->is_alive) {
+			auto it = workerStates.find(u->tag);
+			if (it == workerStates.end()) {
+				if (IsCarryingMinerals(*u)) {
+					workerStates.insert({ u->tag, { ReturningMineral, Entering, Distinct , true } });
+				}
+				else {
+					workerStates.insert({ u->tag,{ MovingToMineral, Entering, Distinct , false } });
+				}
+				rosterChange = true;
 			}
-			else {
-				workerStates.insert({ u->tag,{ MovingToMineral, Entering, Distinct , false } });
-			}
-			rosterChange = true;
+			now.insert(u->tag);
 		}
-		now.insert(u->tag);
 	}
 	// erase irrelevant ones
 	for (auto it = begin(workerAssignedMinerals); it != end(workerAssignedMinerals);)
@@ -127,14 +129,27 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 	}
 }
 
-void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * actions)
+void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * actions, bool inDanger)
 {
 #ifdef DEBUG
 	frame++;	
 #endif
+	if (!nexus->is_alive || probes.empty()) {
+		return;
+	}
 
 	updateRoster(probes);
-	
+
+	if (inDanger) {
+		// only deal with inactive probes
+		for (auto p : probes) {
+			if (p->orders.empty()) {
+				auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
+				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+			}
+		}
+		return;
+	}
 	for (auto p : probes) {
 		auto & e = workerStates[p->tag];
 		auto carrying = IsCarryingMinerals(*p);
@@ -341,11 +356,16 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
 	}
 	for (auto & e : lastTripTime) {
-		debug->DebugTextOut(std::to_string(e.second), obs->GetUnit(e.first)->pos + Point3D(0, 0, .2), Colors::Green);
+		auto u = obs->GetUnit(e.first);
+		if (u != nullptr)
+			debug->DebugTextOut(std::to_string(e.second), u->pos + Point3D(0, 0, .2), Colors::Green);
 	}
 	unordered_map<Tag, int> perMin;
 	for (auto &e : workerAssignedMinerals) {
 		auto p = obs->GetUnit(e.first);
+		if (p == nullptr) {
+			continue;
+		}
 		auto m = minerals[e.second];
 		auto it = perMin.find(m->tag);
 		if (it != perMin.end()) {
@@ -377,7 +397,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	for (auto mp : magicSpots) {
 		auto & p = mp.second;
 		auto  m = obs->GetUnit(mp.first);
-		debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
+		if (m != nullptr)
+			debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
 		ind++;
 	}
 }
