@@ -35,9 +35,13 @@ class HarvesterStrategy
 	sc2::Units minerals;
 	std::unordered_map<sc2::Tag, int> workerAssignedMinerals; //for each worker, which crystal are they assigned?
 	std::unordered_map<sc2::Tag, sc2::Point2D> magicSpots; //for each crystal, where is the magic spot?
+	std::unordered_map<sc2::Tag, sc2::Point2D> magicNexusSpots; //for each crystal, where is the magic spot?
 	std::unordered_map<sc2::Tag, WorkerState> workerStates; //what each worker is doing ('task', not 'job')
 
-	sc2::Point2D calcMagicSpot(const sc2::Unit * mineral);
+	// a spot close to mineral, good for accelerating to
+	static sc2::Point2D calcMagicSpot(const sc2::Unit * mineral, const sc2::Unit* nexus);
+	// a spot close to nexus, good for accelerating to
+	static sc2::Point2D calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info);
 	// update and cleanup workerStates, create & init states for new hires, cleanup guys that got fired
 	// i.e. maintenance operations on workerStates & workerAssignedMinerals
 	void updateRoster(const sc2::Units & current);
@@ -49,7 +53,7 @@ public:
 	int getIdealHarvesters();
 	int getCurrentHarvesters();
 
-	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals);
+	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs);
 	
 	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger = false);
 
