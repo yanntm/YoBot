@@ -51,7 +51,7 @@ public:
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals);
 	
-	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions);
+	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger = false);
 
 #ifdef DEBUG
 	long frame = 0;
