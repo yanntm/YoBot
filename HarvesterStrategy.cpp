@@ -8,26 +8,22 @@ using namespace sc2;
 
 
 sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral) {
-	const sc2::Unit* closestTH = nexus;
-	if (closestTH == nullptr) return sc2::Point3D(0, 0, 0); //in case there are no TownHalls left (or they're flying :)
-
-															//must give a position right in front of crystal, closest to base //base location??
-
-	float offset = 0.1f, xOffset, yOffset;
-	Point2D magicSpot;
-
-	/*float tx = closestTH->pos.x, ty = closestTH->pos.y;
-	float mx = mineral->pos.x,   my = mineral->pos.y;
-
-	if (tx > mx)	magicSpot.x = (tx - mx) * 0.1f;
-	else			magicSpot.x = mineral->pos.x - offset;
-	if (ty > my)	magicSpot.y = mineral->pos.y + offset;
-	else			magicSpot.y = mineral->pos.y - offset;*/
-
-	if (closestTH->pos.x < 60.0f) xOffset = 0.1f; else xOffset = -0.1f;
-	if (closestTH->pos.y < 60.0f) yOffset = 0.1f; else yOffset = -0.1f;
-
-	return Point2D(mineral->pos.x + xOffset, mineral->pos.y + yOffset); //magicSpot
+	auto minpos = mineral->pos;
+	auto pos1 = minpos + Point3D(-.25f, 0,0);
+	auto pos2 = minpos + Point3D(+.25f, 0,0);
+	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
+		minpos = pos1;
+	}
+	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos2)) {
+		minpos = pos2;
+	}
+	
+	// a vector from mineral to nexus
+	auto vec = nexus->pos - minpos;
+	// normalize
+	vec /= Distance2D(Point2D(0, 0), vec);
+	// add to mineral position
+	return minpos + vec * 0.6f;
 }
 
 void HarvesterStrategy::updateRoster(const sc2::Units & current)
@@ -100,7 +96,18 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 
 int HarvesterStrategy::getIdealHarvesters()
 {
-	return minerals.size() * 2 + 1;
+	auto pos = nexus->pos;
+	std::function<int(const Unit *)> func = [pos](const Unit *u) {
+		float d = Distance2D(u->pos, pos);
+		if (d < 7.0f) return 2;
+		if (d <= 9.0f) return 3;
+		return 1;
+	};
+	int ideal = 0;
+	for (auto m : minerals) {
+		ideal += func(m);
+	}
+	return ideal + 1;
 }
 
 int HarvesterStrategy::getCurrentHarvesters()
@@ -113,7 +120,8 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 	this->nexus = nexus;
 	this->minerals=minerals;
 	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
-	for (auto targetMineral : minerals) {
+	updateRoster(Units());
+	for (auto targetMineral : this->minerals) {
 		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral);
 		magicSpots.insert_or_assign(targetMineral->tag, magicSpot);
 	}
@@ -151,7 +159,9 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 		}
 		else if (!carrying) {
 			float gatherDist = 1.7f;
-			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) < gatherDist) {
+			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) < gatherDist
+				|| Distance2D(p->pos, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]) < gatherDist
+				) {
 				e.harvest = GatheringMineral;
 			}
 		}
@@ -162,8 +172,12 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 		auto & e = workerStates[p->tag];
 		if (e.harvest == MovingToMineral) {
 			if (e.move == Entering) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, minerals[workerAssignedMinerals[p->tag]]);
+				actions->UnitCommand(p, ABILITY_ID::SMART, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]);
 				e.move = Accelerating;
+			}
+			else if (e.move == Accelerating) {
+				// keep clicking
+				actions->UnitCommand(p, ABILITY_ID::MOVE, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]);
 			}
 		}
 		else if (e.harvest == ReturningMineral) {
@@ -357,6 +371,13 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 		debug->DebugTextOut(to_string(ind), Point3D(out.x, out.y + 0.2, out.z + 0.1f));
 		auto ideal = func(m);
 		debug->DebugTextOut(to_string(perMin[m->tag])+"/"+to_string(ideal), Point3D(out.x, out.y - 0.2, out.z + 0.1f));		
+		ind++;
+	}
+	ind = 0;
+	for (auto mp : magicSpots) {
+		auto & p = mp.second;
+		auto  m = obs->GetUnit(mp.first);
+		debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
 		ind++;
 	}
 }
