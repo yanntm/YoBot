@@ -1218,6 +1218,9 @@ private:
 		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50) {
 			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters() +1) {
 				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
+				if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
+					Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus);
+				}
 				minerals -= 50;
 				supplyleft -= 1;
 			}
