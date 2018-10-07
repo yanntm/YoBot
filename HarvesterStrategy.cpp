@@ -149,6 +149,12 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 			e.harvest = ReturningMineral;
 			e.move = Entering;			
 		}
+		else if (!carrying) {
+			float gatherDist = 1.7f;
+			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) < gatherDist) {
+				e.harvest = GatheringMineral;
+			}
+		}
 		e.had_mineral = carrying;
 	}
 
@@ -168,7 +174,18 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 		}
 		else {
 			//GatheringMineral, //actively mining the crystal with ability
-
+			auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
+			if (p->orders.empty()) {
+				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+			}
+			else	if (p->orders[0].ability_id == sc2::ABILITY_ID::HARVEST_GATHER)
+			{
+				//keep worker unit at its mineral field
+				if (p->orders[0].target_unit_tag != targetMineral->tag) //stay on assigned field
+				{
+					actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+				}
+			}
 		}
 	}
 }
@@ -180,7 +197,7 @@ void HarvesterStrategy::assignTargets(const Units & workers)
 	auto pos = nexus->pos;
 	std::function<int(const Unit *)> func = [pos](const Unit *u) {
 		float d = Distance2D(u->pos, pos);
-		if (d <= 6.5f) return 2;
+		if (d < 7.0f) return 2;
 		if (d <= 9.0f) return 3;
 		return (int)d / 5;
 	};
@@ -210,7 +227,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 
 	//std::remove_if(mins.begin(), mins.end(), [npos](const Unit * u) { return  Distance2D(u->pos, npos) > 6.0f;  });
 	std::vector<int> freeAgents;
-	std::vector<int> freeMins;
+	std::deque<int> freeMins;
 
 	if (! current.empty()) {
 		int i = 0;
@@ -223,6 +240,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 			}
 			else {
 				targets[i] = -1;
+				freeAgents.push_back(i);
 			}
 			i++;
 		}
@@ -254,7 +272,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 		}
 	}
 
-
+	
 
 
 	if (!freeAgents.empty()) {
@@ -272,16 +290,17 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 		int choice = freeAgents.back();
 		freeAgents.pop_back();
 		auto start = probes[choice]->pos;
-		std::sort(freeMins.begin(), freeMins.end(), [start, mins](int a, int b) { return DistanceSquared2D(start, mins[a]->pos) > DistanceSquared2D(start, mins[b]->pos); });
+		//std::sort(freeMins.begin(), freeMins.end(), [start, mins](int a, int b) { return DistanceSquared2D(start, mins[a]->pos) > DistanceSquared2D(start, mins[b]->pos); });
 
-		int mineral = freeMins.back();
-		freeMins.pop_back();
+		stable_sort(freeMins.begin(), freeMins.end(), [attackers](auto a, auto b) { return attackers[a].size() < attackers[b].size(); });
+		int mineral = freeMins.front();
+		freeMins.pop_front();
 
 
 		attackers[mineral].push_back(choice);
 		targets[choice] = mineral;
 		if (attackers[mineral].size() < toAlloc(mins[mineral])) {
-			freeMins.insert(freeMins.begin(), mineral);
+			freeMins.push_back(mineral);
 		}
 
 	}
@@ -309,6 +328,36 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	}
 	for (auto & e : lastTripTime) {
 		debug->DebugTextOut(std::to_string(e.second), obs->GetUnit(e.first)->pos + Point3D(0, 0, .2), Colors::Green);
+	}
+	unordered_map<Tag, int> perMin;
+	for (auto &e : workerAssignedMinerals) {
+		auto p = obs->GetUnit(e.first);
+		auto m = minerals[e.second];
+		auto it = perMin.find(m->tag);
+		if (it != perMin.end()) {
+			it->second++;
+		}
+		else {
+			perMin[m->tag] = 1;
+		}
+		auto & out = m->pos;
+		debug->DebugLineOut(p->pos, Point3D(out.x, out.y, out.z + 0.1f), Colors::Red);	
+	}
+	auto pos = nexus->pos;
+	std::function<int(const Unit *)> func = [pos](const Unit *u) {
+		float d = Distance2D(u->pos, pos);
+		if (d < 7.0f) return 2;
+		if (d <= 9.0f) return 3;
+		return (int)d / 5;
+	};
+
+	int ind = 0;
+	for (auto m : minerals) {
+		auto & out = m->pos;
+		debug->DebugTextOut(to_string(ind), Point3D(out.x, out.y + 0.2, out.z + 0.1f));
+		auto ideal = func(m);
+		debug->DebugTextOut(to_string(perMin[m->tag])+"/"+to_string(ideal), Point3D(out.x, out.y - 0.2, out.z + 0.1f));		
+		ind++;
 	}
 }
 #endif
