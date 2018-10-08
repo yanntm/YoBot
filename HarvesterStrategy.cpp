@@ -2,6 +2,8 @@
 #include <iostream>
 #include "HarvesterStrategy.h"
 #include "MapTopology.h"
+#include "DistUtil.h"
+#include "UnitTypes.h"
 
 using namespace std;
 using namespace sc2;
@@ -48,6 +50,7 @@ sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, con
 			return totry;
 		}
 	}
+	return nexus->pos;
 }
 
 void HarvesterStrategy::updateRoster(const sc2::Units & current)
@@ -100,12 +103,15 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 	}
 
 	for (auto it = minerals.begin() ; it != minerals.end(); ) {
-		if ((*it)->mineral_contents == 0) {
+		if ((*it)->mineral_contents <= 10) {
 			int index = it - minerals.begin(); 
 			it = minerals.erase(it);			
 			for (auto jt : workerAssignedMinerals) {
 				if (jt.second == index) {
 					jt.second = -1;
+				}
+				else if (jt.second > index) {
+					jt.second--;
 				}
 			}
 			rosterChange = true;
@@ -154,6 +160,7 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 		auto magicNexus = calcNexusMagicSpot(targetMineral,nexus,obs->GetGameInfo());
 		magicNexusSpots.insert_or_assign(targetMineral->tag, magicNexus);
 	}
+	allminerals = obs->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return sc2util::IsMineral(u.unit_type); });
 }
 
 void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * actions, bool inDanger)
@@ -162,6 +169,22 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 	frame++;	
 #endif
 	if (!nexus->is_alive || probes.empty()) {
+		return;
+	}
+	
+	if (minerals.empty()) {
+		allminerals.erase(
+			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents <= 10; }),
+			allminerals.end()
+		);
+		auto min = sc2util::FindNearestUnit(nexus->pos, allminerals, 10000.0);
+		// only deal with inactive probes
+		for (auto p : probes) {
+			if (p->orders.empty()) {
+				auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
+				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+			}
+		}
 		return;
 	}
 
@@ -213,13 +236,33 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 	for (auto p : probes) {
 		auto & e = workerStates[p->tag];
 		if (e.harvest == MovingToMineral) {
+			auto min = minerals[workerAssignedMinerals[p->tag]];
+			auto mp = magicSpots[min->tag];
+			
 			if (e.move == Entering) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]);
+				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 				e.move = Accelerating;
 			}
-			else if (e.move == Accelerating) {
+			else if (e.move == Accelerating) {				
+				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+				e.move = Accelerated;
+			}
+			else if (e.move == Accelerated) {
 				// keep clicking
-				actions->UnitCommand(p, ABILITY_ID::MOVE, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]);
+				actions->UnitCommand(p, ABILITY_ID::SMART, min);
+				e.move = Coasting;
+			}
+			else if (e.move == Coasting) {
+				float brakeDist = 2.2;
+				if (Distance2D(p->pos, min->pos) < brakeDist
+					|| Distance2D(p->pos,mp) < brakeDist
+					) {
+					e.move = Approaching;
+					actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+				}
+			}
+			else if (e.move == Approaching) {
+				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 			}
 		}
 		else if (e.harvest == ReturningMineral) {
@@ -289,7 +332,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 		int i = 0;
 		for (const auto & u : probes) {
 			auto it = current.find(u->tag);
-			if (it != current.end()) {
+			if (it != current.end() && it->second != -1) {
 				int ind = it->second;
 				targets[i] = ind;
 				attackers[ind].push_back(i);
@@ -392,7 +435,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 		for (auto l : roundtrips) { if (l <= 2 * avg2) { avg += l; sz++; } }
 		avg /= sz;
 	}
-	debug->DebugTextOut("Harvested :" + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
+	debug->DebugTextOut("mins " + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
+	debug->DebugTextOut(to_string(getCurrentHarvesters()) + "/" + to_string(getIdealHarvesters()), nexus->pos + Point3D(0,.2f,0.5f));
 	if (frame == 3000) {
 		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
 	}
