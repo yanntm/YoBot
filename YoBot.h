@@ -125,7 +125,7 @@ public:
 			const Unit* mineral_target = FindNearestMineralPatch(unit->pos);
 			Actions()->UnitCommand(unit, ABILITY_ID::RALLY_NEXUS, mineral_target);
 			for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
-				UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, mineral_target);
+				Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, mineral_target);
 			}		
 			if (nexus == nullptr) {
 				nexus = unit;
@@ -199,7 +199,7 @@ public:
 				}
 			}
 			if (enemy != nullptr && enemy->tag != unit->engaged_target_tag) {
-				UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, enemy);
+				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, enemy);
 			}
 			/*		if (unit->orders.size() != 0) {
 			auto order = unit->orders.front();
@@ -384,13 +384,13 @@ public:
 		auto closest = Distance2D(unit->pos, (*nmies.begin())->pos);
 		if (nbouts <= 2 && ( unit->shield == 0 || closest <= 1.5f) && nexus != nullptr) {
 			// try to mineral slide our way out 
-			UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(nexus->pos),1);
+			Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(nexus->pos));
 		}
 		else if (nbouts >= 3 && closest >= 1.5f && unit->shield >= 0) {
-			UnitCommand(unit, ABILITY_ID::MOVE, outs[bestproxout],1);
+			Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[bestproxout]);
 		}
 		else {
-			UnitCommand(unit, ABILITY_ID::MOVE, outs[best],1);
+			Actions()->UnitCommand(unit, ABILITY_ID::MOVE, outs[best]);
 		}
 		return true;
 	}
@@ -443,7 +443,7 @@ public:
 						list.resize(1);
 						//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 					}
-					Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos,1);
+					Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
 				}
 			}
 			if (unit->shield == 0 && nexus != nullptr) {
@@ -452,10 +452,10 @@ public:
 					auto v = unit->pos - nmy->pos;
 					v /= Distance2D(Point2D(0, 0), v);
 					v *= 3.0f;
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos +v),1);
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos +v));
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos ),1);
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos ));
 				}
 			}
 		}
@@ -553,7 +553,7 @@ public:
 					//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 				}
 				for (auto u : list) {
-					Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos,1);
+					Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
 				}
 			}
 		}
@@ -579,24 +579,6 @@ public:
 		return targete;
 	}
 
-	// default max is quite large, it amounts to roughly 15 game unit i.e. a  circle roughly the surface of a base
-	const Unit* FindNearestUnit(const Point2D& start, const Units & units, float maxRangeSquared=200.0f) {		
-		float distance = std::numeric_limits<float>::max();
-		const Unit* targete = nullptr;
-		for (const auto& u : units) {
-			//if (u->unit_type == UNIT_TYPEID::) {
-			float d = DistanceSquared2D(u->pos, start);
-			if (d < distance && d <= maxRangeSquared) {
-				distance = d;
-				targete = u;
-			}
-			//}
-		}
-		if (distance <= maxRangeSquared) {
-			return targete;
-		}
-		return nullptr;
-	}
 
 	const Unit* FindNearestEnemy(const Point2D& start) {
 		return FindNearestUnit(start, Observation()->GetUnits(Unit::Alliance::Enemy));		
