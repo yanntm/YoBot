@@ -25,6 +25,13 @@ public:
 		std::cout << "YoBot will kill you!" << std::endl;
 
 		YoAgent::initialize();
+
+		// three sets of units
+		busyUnits.push_back({});
+		busyUnits.push_back({});
+		busyUnits.push_back({});
+
+
 		const ObservationInterface* observation = Observation();
 		frame = 0;
 		nexus = nullptr;
@@ -40,9 +47,7 @@ public:
 		bob = probes.back();
 		probes.pop_back();
 		
-		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally,MapTopology::main)],Observation());
-		harvesting.OnStep(probes,Actions());
-
+		
 		const GameInfo& game_info = Observation()->GetGameInfo();
 		
 		
@@ -66,6 +71,7 @@ public:
 			// return minerals
 			Actions()->UnitCommand(scout, ABILITY_ID::SMART, nexus, true);
 			Actions()->UnitCommand(scout, ABILITY_ID::SMART, game_info.enemy_start_locations[0], true);
+			busy(scout->tag);
 			scouted = 0;
 			target = proxy;
 		}
@@ -103,7 +109,12 @@ public:
 		
 
 		Actions()->UnitCommand(bob, ABILITY_ID::SMART, proxy);
+		busy(bob->tag);
 
+		if (scout != nullptr) 
+			probes.erase(std::find(probes.begin(), probes.end(), scout));
+		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally, MapTopology::main)], Observation());
+		harvesting.OnStep(probes, Actions());
 
 	}
 
@@ -113,6 +124,7 @@ public:
 				for (auto u : allEnemies()) {
 					if (u.second->is_flying) {
 						UnitCommand(unit, ABILITY_ID::ATTACK, u.second->pos);
+						busy(unit->tag);
 						break;
 					}
 				}
@@ -126,6 +138,7 @@ public:
 			Actions()->UnitCommand(unit, ABILITY_ID::RALLY_NEXUS, mineral_target);
 			for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
 				Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, mineral_target);
+				busy(p->tag);
 			}		
 			if (nexus == nullptr) {
 				nexus = unit;
@@ -444,6 +457,9 @@ public:
 						//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 					}
 					Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
+					for (auto u : list) {
+						busy(u->tag);
+					}
 				}
 			}
 			if (unit->shield == 0 && nexus != nullptr) {
@@ -453,9 +469,11 @@ public:
 					v /= Distance2D(Point2D(0, 0), v);
 					v *= 3.0f;
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos +v));
+					busy(unit->tag);
 				}
 				else {
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos ));
+					busy(unit->tag);
 				}
 			}
 		}
@@ -554,6 +572,7 @@ public:
 				}
 				for (auto u : list) {
 					Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
+					busy(u->tag);
 				}
 			}
 		}
@@ -599,6 +618,7 @@ public:
 	virtual void OnYoStep() final {
 
 		frame++;
+		updateBusy();
 #ifdef DEBUG
 		{
 			
@@ -724,6 +744,7 @@ public:
 					if (!gw->orders.empty()) {
 						minerals += 100;
 						Actions()->UnitCommand(gw, ABILITY_ID::CANCEL_LAST);
+						busy(gw->tag);
 					}
 				}
 			}
@@ -732,6 +753,8 @@ public:
 		for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
 			if (p != bob && p != scout) {
 				bool busy = false;
+				if (isBusy(p->tag))
+					continue;
 				if (IsCarryingVespene(*p))
 					continue;
 				if (p->engaged_target_tag != 0) {
@@ -761,6 +784,7 @@ public:
 					continue;
 				if (p != bob) {
 					Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, ptarg);
+					busy(p->tag);
 					harvesters.erase(p->tag);
 					break;
 				}
@@ -778,7 +802,7 @@ public:
 			const GameInfo& game_info = Observation()->GetGameInfo();			
 			
 			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
-				if (unit->orders.size() == 0) {
+				if (unit->orders.size() == 0 && ! isBusy(unit->tag)) {
 					if (Distance2D(unit->pos, target) < 15.0f) {
 						target = proxy;
 						auto list = Observation()->GetUnits(Unit::Alliance::Enemy, [](const auto & u) { return IsBuilding(u.unit_type) && ! u.is_flying; });
@@ -786,12 +810,14 @@ public:
 							int targetU = GetRandomInteger(0, list.size() - 1);
 							if (!list[targetU]->is_flying) {
 								Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, list[targetU]->pos);
+								busy(unit->tag);
 								continue;
 							}
 						}
 						if (estimated <= 5) {
 							int targetU = GetRandomInteger(0, map.expansions.size() - 1);
 							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, map.expansions[targetU]);
+							busy(unit->tag);
 						}
 					}
 					else {
@@ -801,14 +827,16 @@ public:
 						else {
 							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, defensePoint(proxy));
 						}
+						busy(unit->tag);
 					}
 				}
 			}			
 		}
-		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0) {			
+		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0 && ! isBusy(bob->tag)) {			
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
 			Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy);
 			Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(proxy), true);	
+			busy(bob->tag);
 		};
 		
 
@@ -828,13 +856,14 @@ public:
 					Actions()->UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
 				}				
 			}
-			if (bob != nullptr && nexus != nullptr && probes.size() == 1 && minerals < 50 && estimated < 5) {
+			if (bob != nullptr && nexus != nullptr && probes.size() == 1 && minerals < 50 && estimated < 5 && ! isBusy(bob->tag)) {
 				if (!IsCarryingMinerals(*bob)) {
 					Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, min);
 				}
 				else {
 					Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_RETURN);
 				}
+				busy(bob->tag);
 			}
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
 			if (Observation()->GetArmyCount() >= maxZeal && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
@@ -844,6 +873,7 @@ public:
 					harvesters.erase(p->tag);
 					Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
 					Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
+					busy(p->tag);
 					minerals -= 75;
 				}
 			}
@@ -853,13 +883,14 @@ public:
 				}
 				if (a->assigned_harvesters < 3 && nexus != nullptr && (harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() < 3 || minerals >=200)) {
 					probes.erase(
-						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag; })
+						remove_if(probes.begin(), probes.end(), [this,a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag || isBusy(a->tag); })
 						, probes.end());
 					
 					if (!probes.empty()) {
 						auto p = chooseClosest(a, probes);
 						harvesters.erase(p->tag);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
+						busy(p->tag);
 					}
 				}
 				else if (a->assigned_harvesters > 3 || harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() > 2) {
@@ -1087,6 +1118,7 @@ public:
 						max = f;
 					}
 				}
+				busy(z->tag);
 				// requeue our previous order				
 				if (z->orders.empty()) {
 					Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);
@@ -1210,12 +1242,28 @@ private:
 	long int frame = 0;
 	Race enemyRace;
 
+	std::deque<std::unordered_set<Tag> > busyUnits;
+
+	// make sure this unit is left alone for 3 frames
+	void busy(Tag tag) {
+		busyUnits.back().insert(tag);
+	}
+
+	void updateBusy() {
+		busyUnits.pop_front();
+		busyUnits.push_back({});
+	}
+
+	bool isBusy(Tag tag) {
+		return std::any_of(busyUnits.begin(), busyUnits.end(), [tag](auto & set) { return set.find(tag) != set.end(); });
+	}
+
 	size_t CountUnitType(UNIT_TYPEID unit_type) {
 		return Observation()->GetUnits(Unit::Alliance::Self, IsUnit(unit_type)).size();
 	}
 
 	void TryBuildUnits() {
-		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50) {
+		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50 && !isBusy(nexus->tag)) {
 			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters()) {
 				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
 				if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
@@ -1223,6 +1271,7 @@ private:
 				}
 				minerals -= 50;
 				supplyleft -= 1;
+				busy(nexus->tag);
 			}
 		}
 		
@@ -1243,8 +1292,12 @@ private:
 				if (!gw->is_powered) {
 					continue;
 				}
+				if (isBusy(gw->tag)) {
+					continue;
+				}
 				if (gw->orders.size() == 0) {
 					Actions()->UnitCommand(gw, tobuild);
+					busy(gw->tag);
 					nbuilt++;
 					supplyleft -= supplyreq;
 					minerals -= minsreq;
@@ -1302,7 +1355,7 @@ private:
 		Actions()->UnitCommand(unit_to_build,
 			ability_type_for_structure,
 			Point2D(unit_to_build->pos.x + rx * 10.0f, unit_to_build->pos.y + ry * 10.0f));
-
+		busy(unit_to_build->tag);
 		return true;
 	}
 
@@ -1322,6 +1375,7 @@ private:
 			Actions()->UnitCommand(bob,
 				ABILITY_ID::BUILD_PYLON,
 				proxy);
+			busy(bob->tag);
 			return true;
 		}
 
@@ -1350,7 +1404,7 @@ private:
 
 		// Try and build a depot. Find a random SCV and give it the order.
 		const Unit* unit_to_build = bob;
-		if (bob == nullptr) {
+		if (bob == nullptr || isBusy(bob->tag)) {
 			return false;
 		}
 		for (const auto& order : bob->orders) {
@@ -1363,6 +1417,7 @@ private:
 
 		if (false && CountUnitType(UNIT_TYPEID::PROTOSS_PYLON) == 0) {
 			minerals -= 100;
+			busy(unit_to_build->tag);
 			Actions()->UnitCommand(unit_to_build,
 				ABILITY_ID::BUILD_PYLON,
 				Point2D(unit_to_build->pos.x + rx * 5.0f, unit_to_build->pos.y + ry * 5.0f));
@@ -1375,6 +1430,7 @@ private:
 						Actions()->UnitCommand(unit_to_build,
 							ABILITY_ID::BUILD_PYLON,
 							Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f));
+						busy(unit_to_build->tag);
 						return true;
 					}
 				}
@@ -1410,7 +1466,12 @@ private:
 						good = true;
 					}
 					else {
-						candidate = Point2D(proxy.x + rx * 10.0f, proxy.y + ry * 10.0f);
+						rx = GetRandomScalar();
+						ry = GetRandomScalar();
+						candidate = Point2D(proxy.x + rx * (8.0f + gws.size() * 2), proxy.y + ry * (8.0f + gws.size() * 2));
+						if (evading || needSupport) {
+							candidate = Point2D(unit_to_build->pos.x + rx * 3.0f, proxy.y + ry * 3.0f);
+						}
 					}
 				}
 
@@ -1418,6 +1479,7 @@ private:
 					minerals -= 100;
 					Actions()->UnitCommand(unit_to_build,
 						ABILITY_ID::BUILD_PYLON, candidate);
+					busy(unit_to_build->tag);
 					return true;
 				}
 				else {
@@ -1462,6 +1524,8 @@ private:
 						good = true;
 					}
 					else {
+						rx = GetRandomScalar();
+						ry = GetRandomScalar();
 						candidate = Point2D(proxy.x + rx * 15.0f, proxy.y + ry * 15.0f);
 					}
 				}
@@ -1469,6 +1533,7 @@ private:
 					minerals -= 100;
 					Actions()->UnitCommand(unit_to_build,
 						ABILITY_ID::BUILD_PYLON, candidate);
+					busy(unit_to_build->tag);
 					return true;
 				}
 			}
@@ -1477,6 +1542,7 @@ private:
 			Actions()->UnitCommand(unit_to_build,
 				ABILITY_ID::BUILD_PYLON,
 				Point2D(proxy.x + rx * 8.0f, proxy.y + ry * 8.0f));
+			busy(unit_to_build->tag);
 
 		}
 
@@ -1533,7 +1599,7 @@ private:
 			maxdist = 3.0f;
 		}
 		// try ten positions
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 25; i++) {
 			float rx = GetRandomScalar();
 			float ry = GetRandomScalar();		
 			Point2D candidate = Point2D(bob->pos.x + rx * maxdist, bob->pos.y + ry * maxdist);
@@ -1557,12 +1623,13 @@ private:
 				}
 			}
 
-			if (spaces > 2)
+			if (spaces > 2) {
 				Actions()->UnitCommand(bob,
 					tobuild,
 					candidate);
-
-			return true;
+				busy(bob->tag);
+				return true;
+			}
 		}
 		return false;
 	}
@@ -1646,5 +1713,6 @@ private:
 		else {
 			Actions()->UnitCommand(unit, order.ability_id, order.target_pos, queue);
 		}
+		busy(unit->tag);
 	}
 };
