@@ -12,4 +12,6 @@ namespace sc2util {
 	std::valarray<float> computeDistanceMatrix(const std::vector<sc2::Point3D> & expansions, sc2::QueryInterface * query);
 	// utility for center of gravity
 	const sc2::Point2D cog(const std::vector<sc2::Point2D>& points);
+	// default max is quite large, it amounts to roughly 15 game unit i.e. a  circle roughly the surface of a base
+	const sc2::Unit* FindNearestUnit(const sc2::Point2D& start, const sc2::Units & units, float maxRangeSquared = 200.0f);
 }

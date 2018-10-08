@@ -64,4 +64,21 @@ namespace sc2util {
 		return targetc;
 	}
 
+	const Unit * FindNearestUnit(const Point2D & start, const Units & units, float maxRangeSquared)
+	{
+		float distance = std::numeric_limits<float>::max();
+		const Unit* targete = nullptr;
+		for (const auto& u : units) {
+			float d = DistanceSquared2D(u->pos, start);
+			if (d < distance && d <= maxRangeSquared) {
+				distance = d;
+				targete = u;
+			}
+		}
+		if (distance <= maxRangeSquared) {
+			return targete;
+		}
+		return nullptr;
+	}
+
 }
