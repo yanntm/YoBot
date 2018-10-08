@@ -33,6 +33,7 @@ class HarvesterStrategy
 	};
 	const sc2::Unit * nexus;
 	sc2::Units minerals;
+	sc2::Units allminerals;
 	std::unordered_map<sc2::Tag, int> workerAssignedMinerals; //for each worker, which crystal are they assigned?
 	std::unordered_map<sc2::Tag, sc2::Point2D> magicSpots; //for each crystal, where is the magic spot?
 	std::unordered_map<sc2::Tag, sc2::Point2D> magicNexusSpots; //for each crystal, where is the magic spot?
