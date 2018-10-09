@@ -572,7 +572,8 @@ public:
 			list.erase(std::remove(list.begin(), list.end(), bob), list.end());			
 			auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
 			sortByDistanceTo(list, reaper->pos);
-			list.resize(3);
+			if (list.size() > 3)
+				list.resize(3);
 			if (reaper != nullptr) {
 				if (IsWorkerType(reaper->unit_type)) {
 					//list.resize(2);
@@ -1391,6 +1392,12 @@ private:
 		if (minerals < 100) {
 			return false;
 		}
+		// Try and build a depot. Find a random SCV and give it the order.
+		const Unit* unit_to_build = bob;
+		if (bob == nullptr || isBusy(bob->tag)) {
+			return false;
+		}
+
 		if ((pylons.size() == 0 || (pylons.size() == 1 && Distance2D(pylons.front()->pos, proxy) > 5) ) && Query()->Placement(ABILITY_ID::BUILD_PYLON,proxy) ){
 			minerals -= 100;
 			Actions()->UnitCommand(bob,
@@ -1418,16 +1425,7 @@ private:
 			if (observation->GetFoodUsed() >= 20 && supplyleft > 6)
 				return false;
 		}
-		
-		
-
-
-
-		// Try and build a depot. Find a random SCV and give it the order.
-		const Unit* unit_to_build = bob;
-		if (bob == nullptr || isBusy(bob->tag)) {
-			return false;
-		}
+				
 		for (const auto& order : bob->orders) {
 			if (order.ability_id == ABILITY_ID::BUILD_PYLON) {
 				return false;
