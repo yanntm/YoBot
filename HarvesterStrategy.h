@@ -48,7 +48,7 @@ class HarvesterStrategy
 	void updateRoster(const sc2::Units & current);
 	// compute a distribution/pairing of workers to minerals
 	void assignTargets(const sc2::Units & workers);
-	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {});
+	std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {});
 public:
 	
 	int getIdealHarvesters();
