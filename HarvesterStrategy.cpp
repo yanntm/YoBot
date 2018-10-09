@@ -103,10 +103,10 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 	}
 
 	for (auto it = minerals.begin() ; it != minerals.end(); ) {
-		if ((*it)->mineral_contents <= 10) {
+		if ((*it)->mineral_contents <= 5) {
 			int index = it - minerals.begin(); 
 			it = minerals.erase(it);			
-			for (auto jt : workerAssignedMinerals) {
+			for (auto & jt : workerAssignedMinerals) {
 				if (jt.second == index) {
 					jt.second = -1;
 				}
@@ -121,7 +121,7 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 		}
 	}
 
-	if (rosterChange) {
+	if (rosterChange && ! minerals.empty()) {
 		assignTargets(current);
 	}
 }
@@ -140,7 +140,7 @@ int HarvesterStrategy::getIdealHarvesters()
 	for (auto m : minerals) {
 		ideal += func(m);
 	}
-	return ideal + 1;
+	return ideal;
 }
 
 int HarvesterStrategy::getCurrentHarvesters()
@@ -150,6 +150,7 @@ int HarvesterStrategy::getCurrentHarvesters()
 
 void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs)
 {
+	*this = HarvesterStrategy();
 	this->nexus = nexus;
 	this->minerals=minerals;
 	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
@@ -171,24 +172,22 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 	if (!nexus->is_alive || probes.empty()) {
 		return;
 	}
-	
+	updateRoster(probes);
+
 	if (minerals.empty()) {
 		allminerals.erase(
-			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents <= 10; }),
+			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents <= 5; }),
 			allminerals.end()
 		);
 		auto min = sc2util::FindNearestUnit(nexus->pos, allminerals, 10000.0);
 		// only deal with inactive probes
 		for (auto p : probes) {
-			if (p->orders.empty()) {
-				auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
-				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+			if (p->orders.empty()) {				
+				actions->UnitCommand(p, ABILITY_ID::SMART, min);
 			}
 		}
 		return;
 	}
-
-	updateRoster(probes);
 
 	if (inDanger) {
 		// only deal with inactive probes
@@ -328,6 +327,8 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 	std::vector<int> freeAgents;
 	std::deque<int> freeMins;
 
+	bool overSat = getIdealHarvesters() < getCurrentHarvesters();
+
 	if (! current.empty()) {
 		int i = 0;
 		for (const auto & u : probes) {
@@ -346,7 +347,14 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 		for (int i = 0, e = mins.size(); i < e; i++) {
 			auto sz = attackers[i].size();
 			int goodValue = toAlloc(mins[i]);
-			if (sz > goodValue) {
+			if (sz < goodValue) {
+				freeMins.push_back(i);
+			}
+		}
+		for (int i = 0, e = mins.size(); i < e; i++) {
+			auto sz = attackers[i].size();
+			int goodValue = toAlloc(mins[i]);
+			if (sz > goodValue && (! overSat || ! freeMins.empty())) {
 				auto start = mins[i]->pos;
 				std::sort(attackers[i].begin(), attackers[i].end(), [start, probes](int a, int b) { return DistanceSquared2D(start, probes[a]->pos) < DistanceSquared2D(start, probes[b]->pos); });
 
@@ -356,10 +364,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 				}
 				attackers[i].resize(goodValue);
 
-			}
-			else if (sz < goodValue) {
-				freeMins.push_back(i);
-			}
+			}			 
 		}
 	}
 	else {
@@ -451,16 +456,18 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 		if (p == nullptr) {
 			continue;
 		}
-		auto m = minerals[e.second];
-		auto it = perMin.find(m->tag);
-		if (it != perMin.end()) {
-			it->second++;
+		if (e.second != -1 && e.second < minerals.size()) {
+			auto m = minerals[e.second];
+			auto it = perMin.find(m->tag);
+			if (it != perMin.end()) {
+				it->second++;
+			}
+			else {
+				perMin[m->tag] = 1;
+			}
+			auto & out = m->pos;
+			debug->DebugLineOut(p->pos, Point3D(out.x, out.y, out.z + 0.1f), Colors::Red);
 		}
-		else {
-			perMin[m->tag] = 1;
-		}
-		auto & out = m->pos;
-		debug->DebugLineOut(p->pos, Point3D(out.x, out.y, out.z + 0.1f), Colors::Red);	
 	}
 	auto pos = nexus->pos;
 	std::function<int(const Unit *)> func = [pos](const Unit *u) {
