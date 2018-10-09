@@ -32,10 +32,11 @@ public:
 	enum Player {ally, enemy};
 	// note asking for pocket will yield nat if no pocket found
 	const sc2::Point3D & getPosition(Player p, BaseType b) const;
-	int getExpansionIndex(Player p, BaseType b) const;
+	int getExpansionIndex(Player p, BaseType b) const;	
 	// true iff we found pocket  bases
 	bool hasPockets() const;
 	// looking for a base ?
+	int FindNearestBaseIndex(const sc2::Point3D& start) const;
 	const sc2::Point3D & FindNearestBase(const sc2::Point3D& start) const;
 	// call this at game start to build up the info
 	void init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug=nullptr);
