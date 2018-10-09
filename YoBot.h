@@ -11,6 +11,7 @@
 #include "HarvesterStrategy.h"
 #include <valarray>
 #include <unordered_set>
+#include <iostream>
 
 //#include "Strategys.h"
 #define DllExport   __declspec( dllexport )  
@@ -113,7 +114,12 @@ public:
 
 		if (scout != nullptr) 
 			probes.erase(std::find(probes.begin(), probes.end(), scout));
-		harvesting.initialize(nexus, map.resourcesPer[map.getExpansionIndex(MapTopology::ally, MapTopology::main)], Observation());
+		Units minerals = map.resourcesPer[map.getExpansionIndex(MapTopology::ally, MapTopology::main)];
+		minerals.erase(
+			remove_if(minerals.begin(), minerals.end(), [](auto u) { return u->mineral_contents == 0; })
+			, minerals.end()
+		);
+		harvesting.initialize(nexus, minerals, Observation());
 		harvesting.OnStep(probes, Actions());
 
 	}
@@ -142,6 +148,8 @@ public:
 			}		
 			if (nexus == nullptr) {
 				nexus = unit;
+				int index = map.FindNearestBaseIndex(nexus->pos);
+				harvesting.initialize(nexus, map.resourcesPer[index], Observation());
 			}
 		}
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY) {
@@ -734,6 +742,7 @@ public:
 				sort(gws.begin(), gws.end(),
 					[](auto & a, auto & b)
 				{
+					if (a->orders.empty() && b->orders.empty()) return a->tag < b->tag;
 					if (a->orders.empty()) return true;
 					if (b->orders.empty()) return false;
 					return a->orders.begin()->progress < b->orders.begin()->progress;
@@ -750,23 +759,35 @@ public:
 			}
 		}
 		std::unordered_set<Tag> harvesters;
-		for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
+		
+		auto probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+		for (auto p : probs) {
 			if (p != bob && p != scout) {
 				bool busy = false;
 				if (isBusy(p->tag))
 					continue;
-				if (IsCarryingVespene(*p))
+				if (IsCarryingVespene(*p)) {
+					// or probes that return gas become free on frame they return it
+					//YoBot::busy(p->tag);
 					continue;
+				}
 				if (p->engaged_target_tag != 0) {
 					auto target = Observation()->GetUnit(p->engaged_target_tag);
-					if (target != nullptr && target->vespene_contents != 0)
+					if (target != nullptr && (target->vespene_contents != 0 || target->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR ))
 						continue;
 				}
 				for (auto o : p->orders) {
 					if (o.ability_id != ABILITY_ID::MOVE && o.ability_id != ABILITY_ID::HARVEST_GATHER && o.ability_id != ABILITY_ID::HARVEST_RETURN) {
 						busy = true;
 						break;
-					}					
+					}
+					if (o.ability_id == ABILITY_ID::HARVEST_GATHER) {
+						auto target = Observation()->GetUnit(o.target_unit_tag);
+						if (target != nullptr && (target->vespene_contents != 0 || target->unit_type == UNIT_TYPEID::PROTOSS_ASSIMILATOR)) {
+							busy = true;
+							break;
+						}
+					}
 				}
 				if (!busy)
 					harvesters.insert(p->tag);
