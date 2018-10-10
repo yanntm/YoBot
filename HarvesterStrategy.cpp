@@ -129,6 +129,8 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 
 int HarvesterStrategy::getIdealHarvesters()
 {
+	if (nexus == nullptr || ! nexus->is_alive)
+		return 0;
 	auto pos = nexus->pos;
 	std::function<int(const Unit *)> func = [pos](const Unit *u) {
 		float d = Distance2D(u->pos, pos);
@@ -169,7 +171,11 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 #ifdef DEBUG
 	frame++;	
 #endif
-	if (!nexus->is_alive || probes.empty()) {
+	if (!nexus->is_alive || nexus == nullptr) {
+		nexus = nullptr;
+		return;
+	}
+	if (probes.empty()) {
 		return;
 	}
 	updateRoster(probes);
