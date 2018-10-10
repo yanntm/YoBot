@@ -459,7 +459,7 @@ public:
 				
 				if (list.size() > 3) 
 					list.resize(3);
-				if (reaper != nullptr) {
+				if (reaper != nullptr && ! list.empty()) {
 					if (close.size() == 1 && IsWorkerType(reaper->unit_type)) {
 						list.resize(1);
 						//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
@@ -1162,7 +1162,7 @@ public:
 	virtual void OnUnitIdle(const Unit* unit) final {
 		if (unit == scout) {
 			
-			if (proxy != target) {
+			if (proxy != target && nexus != nullptr) {
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos),false);
 				scout = nullptr;
 			}
@@ -1176,7 +1176,7 @@ public:
 				}
 
 				//scouted++;
-				if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1) {	
+				if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1 && nexus != nullptr) {	
 					target = Observation()->GetGameInfo().enemy_start_locations[s];
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
 					scout = nullptr;
