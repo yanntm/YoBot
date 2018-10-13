@@ -29,7 +29,7 @@ sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc
 	// normalize
 	vec /= Distance2D(Point2D(0, 0), vec);
 	// add to mineral position
-	return minpos + vec * 0.7f;
+	return minpos + vec * 0.85f;
 }
 
 sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
@@ -236,7 +236,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 		else if (!carrying) {
 			float gatherDist = 1.5f;
 			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) <= gatherDist
-				|| Distance2D(p->pos, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]) < 0.85
+				|| Distance2D(p->pos, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]) <= 0.8
 				) {
 				e.harvest = GatheringMineral;
 			}
