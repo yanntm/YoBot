@@ -29,7 +29,7 @@ sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc
 	// normalize
 	vec /= Distance2D(Point2D(0, 0), vec);
 	// add to mineral position
-	return minpos + vec * 0.6f;
+	return minpos + vec * 0.7f;
 }
 
 sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
@@ -234,9 +234,9 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 			e.move = Entering;			
 		}
 		else if (!carrying) {
-			float gatherDist = 1.7f;
-			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) < gatherDist
-				|| Distance2D(p->pos, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]) < gatherDist
+			float gatherDist = 1.5f;
+			if (Distance2D(p->pos, minerals[workerAssignedMinerals[p->tag]]->pos) <= gatherDist
+				|| Distance2D(p->pos, magicSpots[minerals[workerAssignedMinerals[p->tag]]->tag]) < 0.85
 				) {
 				e.harvest = GatheringMineral;
 			}
@@ -264,13 +264,15 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 				e.move = Coasting;
 			}
 			else if (e.move == Coasting) {
-				float brakeDist = 2.2;
+				float brakeDist = 2.5f;
 				if (Distance2D(p->pos, min->pos) < brakeDist
 					|| Distance2D(p->pos,mp) < brakeDist
 					) {
 					e.move = Approaching;
 					actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 				}
+				// keep clicking
+				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 			}
 			else if (e.move == Approaching) {
 				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
@@ -280,6 +282,10 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 			if (e.move == Entering) {
 				actions->UnitCommand(p, ABILITY_ID::SMART, nexus);
 				e.move = Accelerating;
+			}
+			else {
+				// keep clicking !
+				actions->UnitCommand(p, ABILITY_ID::HARVEST_RETURN);
 			}
 		}
 		else {
@@ -455,8 +461,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	debug->DebugTextOut("mins " + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
 	if (nexus != nullptr) 
 		debug->DebugTextOut(to_string(getCurrentHarvesters()) + "/" + to_string(getIdealHarvesters()), nexus->pos + Point3D(0,.2f,0.5f));
-	if (frame == 3000) {
-		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
+	if (frame % 500 == 0) {
+		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg)  << endl;
 	}
 	for (auto & e : lastTripTime) {
 		auto u = obs->GetUnit(e.first);
