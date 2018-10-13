@@ -12,6 +12,9 @@ using namespace sc2;
 
 sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus) {
 	auto minpos = mineral->pos;
+	if (nexus == nullptr) {
+		return minpos;
+	}
 	auto pos1 = minpos + Point3D(-.25f, 0,0);
 	auto pos2 = minpos + Point3D(+.25f, 0,0);
 	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
@@ -31,6 +34,9 @@ sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc
 
 sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
 	auto minpos = mineral->pos;
+	if (nexus == nullptr) {
+		return minpos;
+	}
 	auto pos1 = minpos + Point3D(-.25f, 0, 0);
 	auto pos2 = minpos + Point3D(+.25f, 0, 0);
 	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
@@ -171,7 +177,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 #ifdef DEBUG
 	frame++;	
 #endif
-	if (!nexus->is_alive || nexus == nullptr) {
+	if ( nexus == nullptr || !nexus->is_alive ) {
 		nexus = nullptr;
 		return;
 	}
@@ -447,7 +453,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 		avg /= sz;
 	}
 	debug->DebugTextOut("mins " + std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg));
-	debug->DebugTextOut(to_string(getCurrentHarvesters()) + "/" + to_string(getIdealHarvesters()), nexus->pos + Point3D(0,.2f,0.5f));
+	if (nexus != nullptr) 
+		debug->DebugTextOut(to_string(getCurrentHarvesters()) + "/" + to_string(getIdealHarvesters()), nexus->pos + Point3D(0,.2f,0.5f));
 	if (frame == 3000) {
 		std::cout << "Harvesting stats :" << std::to_string(totalMined) + " in " + to_string(frame) + " avg : " + to_string(avg);
 	}
@@ -467,45 +474,46 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 			auto it = perMin.find(m->tag);
 			if (it != perMin.end()) {
 				it->second++;
-			}
-			else {
+			} else {
 				perMin[m->tag] = 1;
 			}
 			auto & out = m->pos;
 			debug->DebugLineOut(p->pos, Point3D(out.x, out.y, out.z + 0.1f), Colors::Red);
 		}
 	}
-	auto pos = nexus->pos;
-	std::function<int(const Unit *)> func = [pos](const Unit *u) {
-		float d = Distance2D(u->pos, pos);
-		if (d < 7.0f) return 2;
-		if (d <= 9.0f) return 3;
-		return (int)d / 5;
-	};
+	if (nexus != nullptr) {
+		auto pos = nexus->pos;
+		std::function<int(const Unit *)> func = [pos](const Unit *u) {
+			float d = Distance2D(u->pos, pos);
+			if (d < 7.0f) return 2;
+			if (d <= 9.0f) return 3;
+			return (int)d / 5;
+		};
 
-	int ind = 0;
-	for (auto m : minerals) {
-		auto & out = m->pos;
-		debug->DebugTextOut(to_string(ind), Point3D(out.x, out.y + 0.2, out.z + 0.1f));
-		auto ideal = func(m);
-		debug->DebugTextOut(to_string(perMin[m->tag])+"/"+to_string(ideal), Point3D(out.x, out.y - 0.2, out.z + 0.1f));		
-		ind++;
-	}
-	ind = 0;
-	for (auto mp : magicSpots) {
-		auto & p = mp.second;
-		auto  m = obs->GetUnit(mp.first);
-		if (m != nullptr)
-			debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
-		ind++;
-	}
-	ind = 0;
-	for (auto mp : magicNexusSpots) {
-		auto & p = mp.second;
-		auto  m = obs->GetUnit(mp.first);
-		if (m != nullptr)
-			debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
-		ind++;
+		int ind = 0;
+		for (auto m : minerals) {
+			auto & out = m->pos;
+			debug->DebugTextOut(to_string(ind), Point3D(out.x, out.y + 0.2, out.z + 0.1f));
+			auto ideal = func(m);
+			debug->DebugTextOut(to_string(perMin[m->tag]) + "/" + to_string(ideal), Point3D(out.x, out.y - 0.2, out.z + 0.1f));
+			ind++;
+		}
+		ind = 0;
+		for (auto mp : magicSpots) {
+			auto & p = mp.second;
+			auto  m = obs->GetUnit(mp.first);
+			if (m != nullptr)
+				debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
+			ind++;
+		}
+		ind = 0;
+		for (auto mp : magicNexusSpots) {
+			auto & p = mp.second;
+			auto  m = obs->GetUnit(mp.first);
+			if (m != nullptr)
+				debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
+			ind++;
+		}
 	}
 }
 #endif
