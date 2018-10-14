@@ -88,6 +88,7 @@ public:
 			if (enemyRace == Race::Zerg) {
 				limit = 0;
 			}
+			//rnd = 2;
 			if (rnd <= limit) {
 				proxy = map.getPosition(MapTopology::enemy, MapTopology::nat);
 			}
@@ -360,7 +361,7 @@ public:
 			float next = Distance2D(goal, outs[outid]);
 			if (next >= 20.0f) {
 				if (scores[outid] > 0)
-					scores[outid] *= 2 / 3;
+					scores[outid] *= .66f;
 			}
 		}
 
@@ -421,67 +422,73 @@ public:
 			// evasive action
 			evade(bob,proxy);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
-			auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-			int att = 0;
-			for (auto unit : list) {
-				for (auto order : unit->orders) {
-					if (order.ability_id == ABILITY_ID::ATTACK_ATTACK) {
-						att++;
-					}
-				}
+			if (nexus == nullptr) {
+				evade(unit, proxy);
 			}
-			
-			const auto & tpos = (nexus == nullptr) ? unit->pos : nexus->pos;
-			Units close = FindEnemiesInRange(tpos, 6);
+			else {
 
-			if (att < 2*close.size() && att <= list.size() *.75f ) {
-				if (bob != nullptr) list.erase(std::remove(list.begin(), list.end(), bob), list.end());
-				auto targets = FindEnemiesInRange(tpos, 6);
-
-				//auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
-				auto reaper = FindWeakestUnit(targets);
-				float sum = 0;
-				for (const auto & p : list) {
-					sum += p->health + p->shield;
-				}
-				sum /= list.size();
-				
-				sortByDistanceTo(list, reaper->pos);
-				std::stable_sort(list.begin(), list.end(), [](const Unit * a, const Unit *b) { return a->health + a->shield > b->health + b->shield; });
-
-				// the probes with less than half of average life are pushed to end of selection
-				//list.erase(
-				std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2; });
-				//	,list.end()); 
-				
-				// we want new attackers to be mobilized
-				std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return ! p->orders.empty() && p->orders[0].ability_id == ABILITY_ID::ATTACK_ATTACK; });
-				
-				if (list.size() > 3) 
-					list.resize(3);
-				if (reaper != nullptr && ! list.empty()) {
-					if (close.size() == 1 && IsWorkerType(reaper->unit_type)) {
-						list.resize(1);
-						//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
-					}
-					Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
-					for (auto u : list) {
-						busy(u->tag);
+				auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+				int att = 0;
+				for (auto unit : list) {
+					for (auto order : unit->orders) {
+						if (order.ability_id == ABILITY_ID::ATTACK_ATTACK) {
+							att++;
+						}
 					}
 				}
-			}
-			if (unit->shield == 0 && nexus != nullptr) {
-				const auto & nmy = FindNearestUnit(unit->pos, close);
-				if (nmy != nullptr) {
-					auto v = unit->pos - nmy->pos;
-					v /= Distance2D(Point2D(0, 0), v);
-					v *= 3.0f;
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos +v));
-					busy(unit->tag);
+
+				const auto & tpos = (nexus == nullptr) ? unit->pos : nexus->pos;
+				Units close = FindEnemiesInRange(tpos, 6);
+
+				if (att < 2 * close.size() && att <= list.size() *.75f) {
+					if (bob != nullptr) list.erase(std::remove(list.begin(), list.end(), bob), list.end());
+					auto targets = FindEnemiesInRange(tpos, 6);
+
+					//auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
+					auto reaper = FindWeakestUnit(targets);
+					float sum = 0;
+					for (const auto & p : list) {
+						sum += p->health + p->shield;
+					}
+					sum /= list.size();
+
+					sortByDistanceTo(list, reaper->pos);
+					std::stable_sort(list.begin(), list.end(), [](const Unit * a, const Unit *b) { return a->health + a->shield > b->health + b->shield; });
+
+					// the probes with less than half of average life are pushed to end of selection
+					//list.erase(
+					std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return p->health + p->shield <= sum / 2; });
+					//	,list.end()); 
+
+					// we want new attackers to be mobilized
+					std::remove_if(list.begin(), list.end(), [sum](const Unit * p) { return !p->orders.empty() && p->orders[0].ability_id == ABILITY_ID::ATTACK_ATTACK; });
+
+					if (list.size() > 3)
+						list.resize(3);
+					if (reaper != nullptr && !list.empty()) {
+						if (close.size() == 1 && IsWorkerType(reaper->unit_type)) {
+							list.resize(1);
+							//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
+						}
+						Actions()->UnitCommand(list, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
+						for (auto u : list) {
+							busy(u->tag);
+						}
+					}
 				}
-				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos ));
-					busy(unit->tag);
+				if (unit->shield == 0 && nexus != nullptr) {
+					const auto & nmy = FindNearestUnit(unit->pos, close);
+					if (nmy != nullptr) {
+						auto v = unit->pos - nmy->pos;
+						v /= Distance2D(Point2D(0, 0), v);
+						v *= 3.0f;
+						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos + v));
+						busy(unit->tag);
+					}
+					else {
+						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos));
+						busy(unit->tag);
+					}
 				}
 			}
 		}
@@ -843,12 +850,7 @@ public:
 						}
 					}
 					else {
-						if (target != proxy) {
-							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
-						}
-						else {
-							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, defensePoint(proxy));
-						}
+						OnUnitIdle(unit);						
 						busy(unit->tag);
 					}
 				}
@@ -856,9 +858,14 @@ public:
 		}
 		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0 && ! isBusy(bob->tag)) {			
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
-			Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy);
-			Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(proxy), true);	
-			busy(bob->tag);
+			if (sc2util::Placement(Observation()->GetGameInfo(),proxy)) {
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy);
+				busy(bob->tag);
+			}
+			if (bob->orders.empty() || none_of(bob->orders.begin(), bob->orders.end(), [](const auto & o) { return  o.ability_id == ABILITY_ID::HARVEST_GATHER || o.ability_id == ABILITY_ID::HARVEST_RETURN; })) {
+				Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(proxy), true);
+				busy(bob->tag);
+			}
 		};
 		
 
@@ -944,14 +951,27 @@ public:
 			if (u!=nullptr)
 				har.push_back(u);
 		}
-
+		if (har.empty()) {
+			if (bob != nullptr && ! isBusy(bob->tag)) {
+				har.push_back(bob);
+			}
+		}
 		auto mainpos = map.getPosition(MapTopology::ally, MapTopology::main);
 		auto enemies = Observation()->GetUnits(Unit::Alliance::Enemy, [mainpos](const Unit & e) { return DistanceSquared2D(e.pos, mainpos) < 100.0f; });
-		if (enemies.size() >=  3) {
-			harvesting.OnStep(har, Actions(), true);
+		if (nexus != nullptr) {
+			if (enemies.size() >= 3) {
+				harvesting.OnStep(har, Actions(), true);
+			}
+			else {
+				harvesting.OnStep(har, Actions(), false);
+			}
 		}
 		else {
-			harvesting.OnStep(har, Actions(), false);
+			if (frame % 3 == 0) {
+				for (auto p : har) {
+					evade(p, proxy);
+				}
+			}
 		}
 #ifdef DEBUG
 		harvesting.PrintDebug(Debug(),Observation());
@@ -1210,27 +1230,39 @@ public:
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_ZEALOT: {
-			if (Observation()->GetArmyCount() >= 10) {
+			if (Observation()->GetArmyCount() >= criticalZeal) {
 				const GameInfo& game_info = Observation()->GetGameInfo();
-				if (target != proxy) {
-					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, target);
+				auto tg = target;
+				if (target == proxy) {
+					tg = defensePoint(proxy);
+				}
+				if (Distance2D(unit->pos, tg) < 8.0f) {
+					OnUnitHasAttacked(unit);
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, defensePoint(proxy));
-				}
-				if (Distance2D(unit->pos, target) < 10.0f) {
-					OnUnitHasAttacked(unit);
+					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
 				}
 			}
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_VOIDRAY: {
+			bool clearing = false;
 			for (auto u : allEnemies()) {
 				if (u.second->is_flying) {
 					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, u.second->pos);
+					clearing = true;
 					break;
 				}
-			}			
+			}
+			if (!clearing) {
+				if (Observation()->GetArmyCount() >= criticalZeal) {
+					auto tg = target;
+					if (target == proxy) {
+						tg = defensePoint(proxy);
+					}
+					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+				}
+			}
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_PROBE: {
@@ -1408,13 +1440,16 @@ private:
 		}
 
 		bool needSupport = false;
+		int building = 0; 
 		for (const auto& unit : pylons) {
+			if (unit->build_progress < 1 && damageRatio(unit) < 1) {
+				needSupport = true;
+			}
+			if (unit->build_progress == 1 && unit->shield < unit->shield_max) {
+				needSupport = true;
+			}
 			if (unit->build_progress < 1) {
-				auto r = damageRatio(unit);
-				if (r >= 1)
-					return false;
-				else
-					needSupport = true;
+				building++;
 			}
 		}
 
@@ -1424,6 +1459,11 @@ private:
 				return false;
 			if (observation->GetFoodUsed() >= 20 && supplyleft > 6)
 				return false;
+		}
+		else {
+			if (building >= 3 || supplyleft >= 12) {
+				return false;
+			}
 		}
 				
 		for (const auto& order : bob->orders) {
