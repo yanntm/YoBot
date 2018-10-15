@@ -77,6 +77,8 @@ public:
 			target = proxy;
 		}
 		else {
+			scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());			
+
 			target = map.getPosition(MapTopology::enemy, MapTopology::main);
 			
 			int max = 2 ;
@@ -266,7 +268,8 @@ public:
 
 	bool evade(const Unit * unit, Point2D goal) {
 		
-		auto nmies = FindEnemiesInRange(unit->pos, 6.0f);
+		auto nmies = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
+			return (IsArmyUnitType(u.unit_type) || isStaticDefense(u.unit_type) || IsWorkerType(u.unit_type)) && Distance2D(unit->pos, u.pos) < std::max(6.0f, 1.5f + getRange(&u)); });
 		if (nmies.empty()) {
 			return false;
 		}
@@ -418,7 +421,7 @@ public:
 	}
 
 	virtual void OnUnitAttacked(const Unit* unit) final {
-		if (unit == bob && unit->shield <= 5) {
+		if ( (unit == bob || unit==scout) && unit->shield <= 5) {
 			// evasive action
 			evade(bob,proxy);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
@@ -442,6 +445,7 @@ public:
 
 				if (att < 2 * close.size() && att <= list.size() *.75f) {
 					if (bob != nullptr) list.erase(std::remove(list.begin(), list.end(), bob), list.end());
+					if (scout != nullptr) list.erase(std::remove(list.begin(), list.end(), scout), list.end());
 					auto targets = FindEnemiesInRange(tpos, 6);
 
 					//auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
@@ -571,6 +575,9 @@ public:
 				proxy = map.getPosition(MapTopology::ally, MapTopology::main);
 			}
 		}
+		else if (scout == unit) {
+			scout = nullptr;
+		}
 		else if (nexus == unit) {
 			nexus = nullptr;
 		}
@@ -695,8 +702,15 @@ public:
 #endif
 		//sc2::SleepFor(20);
 
+		if (frame == 300 && scout != nullptr) {
+			// return minerals
+			Actions()->UnitCommand(scout, ABILITY_ID::HARVEST_RETURN);
+			Actions()->UnitCommand(scout, ABILITY_ID::ATTACK_ATTACK, map.getPosition(MapTopology::enemy, MapTopology::main), true);
+			busy(scout->tag);
+		}
+
 		bool evading = false;
-		if (bob != nullptr && frame%3==0) {
+		if (bob != nullptr && !isBusy(bob->tag)) {
 			if (bob->orders.empty() || (bob->orders.begin()->ability_id == ABILITY_ID::PATROL || bob->orders.begin()->ability_id == ABILITY_ID::MOVE || bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
 				evading = evade(bob,proxy);
 				if (!evading && (! bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) ) {
@@ -704,6 +718,10 @@ public:
 				}
 			}
 		}
+		if (scout != nullptr && !isBusy(scout->tag)) {
+			evade(scout, map.getPosition(MapTopology::enemy, MapTopology::main));
+		}
+
 
 		if (proxy != target) {
 			if (FindEnemiesInRange(target, 18).empty() && baseRazed) {
@@ -823,7 +841,7 @@ public:
 		// we get undesirable double commands if we do this each frame
 		if (frame % 3 == 0) {
 			TryBuildSupplyDepot(pylons,evading);
-			TryBuildBarracks(evading);
+			TryBuildBarracks(pylons,evading);
 			TryBuildUnits();
 		}
 		auto estimated = estimateEnemyStrength();
@@ -954,6 +972,9 @@ public:
 		if (har.empty()) {
 			if (bob != nullptr && ! isBusy(bob->tag)) {
 				har.push_back(bob);
+			}
+			if (scout != nullptr && !isBusy(scout->tag)) {
+				har.push_back(scout);
 			}
 		}
 		auto mainpos = map.getPosition(MapTopology::ally, MapTopology::main);
@@ -1182,30 +1203,34 @@ public:
 	virtual void OnUnitIdle(const Unit* unit) final {
 		if (unit == scout) {
 			
-			if (proxy != target && nexus != nullptr) {
-				Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos),false);
-				scout = nullptr;
-			}
-			else {
-				int s = 0;
-				for (const auto & pos : Observation()->GetGameInfo().enemy_start_locations) {
-					auto vis = Observation()->GetVisibility(pos);
-					if (vis == sc2::Visibility::Fogged || vis == sc2::Visibility::Visible) {
-						s++;
-					}
-				}
-
-				//scouted++;
-				if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1 && nexus != nullptr) {	
-					target = Observation()->GetGameInfo().enemy_start_locations[s];
+			if (Observation()->GetGameInfo().enemy_start_locations.size() > 1) {
+				if (proxy != target && nexus != nullptr) {
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
 					scout = nullptr;
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[s], false);
+					int s = 0;
+					for (const auto & pos : Observation()->GetGameInfo().enemy_start_locations) {
+						auto vis = Observation()->GetVisibility(pos);
+						if (vis == sc2::Visibility::Fogged || vis == sc2::Visibility::Visible) {
+							s++;
+						}
+					}
+
+					//scouted++;
+					if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1 && nexus != nullptr) {
+						target = Observation()->GetGameInfo().enemy_start_locations[s];
+						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
+						scout = nullptr;
+					}
+					else {
+						Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[s], false);
+					}
 				}
+				return;
+			} else {
+				evade(unit, map.getPosition(MapTopology::enemy, MapTopology::main));
 			}
-			return;
 		}
 		
 		if (unit == bob) {
@@ -1459,6 +1484,8 @@ private:
 				return false;
 			if (observation->GetFoodUsed() >= 20 && supplyleft > 6)
 				return false;
+			if (building > 0)
+				return false;
 		}
 		else {
 			if (building >= 3 || supplyleft >= 12) {
@@ -1484,13 +1511,21 @@ private:
 			Units gws = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
 			if (gws.size() != 0 || needSupport) {
 				for (auto & gw : gws) {
-					if (!gw->is_powered && (! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f)) {
-						minerals -= 100;
-						Actions()->UnitCommand(unit_to_build,
-							ABILITY_ID::BUILD_PYLON,
-							Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f));
-						busy(unit_to_build->tag);
-						return true;
+					if (gw->build_progress ==  1 && !gw->is_powered && (! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f)) {
+						
+						for (int i = 0; i < 30; i++) {
+							rx = GetRandomScalar();
+							ry = GetRandomScalar();
+							auto candidate = Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f);
+							if (Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
+								Actions()->UnitCommand(unit_to_build,
+									ABILITY_ID::BUILD_PYLON,
+									candidate);
+								minerals -= 100;
+								busy(unit_to_build->tag);
+								return true;
+							}
+						}
 					}
 				}
 
@@ -1611,10 +1646,10 @@ private:
 	const int criticalZeal =7;
 	const int maxZeal = 18;
 
-	bool TryBuildBarracks(bool evading = false) {
+	bool TryBuildBarracks(Units & pylons, bool evading = false) {
 
 
-		if (CountUnitType(UNIT_TYPEID::PROTOSS_PYLON) < 1) {
+		if (pylons.empty() || (pylons.size() == 1 && pylons.front()->build_progress < 1)) {
 			return false;
 		}
 		int gws = CountUnitType(UNIT_TYPEID::PROTOSS_GATEWAY);		
@@ -1638,6 +1673,12 @@ private:
 				tobuild = ABILITY_ID::BUILD_STARGATE;
 			}
 		}
+		if (tobuild == ABILITY_ID::BUILD_GATEWAY && minerals < 150) {
+			return false;
+		}
+		else if (tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE && minerals < 150) {
+			return false;
+		}
 
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
@@ -1656,7 +1697,29 @@ private:
 		float maxdist = 15.0f;
 		if (FindEnemiesInRange(bob->pos, 8.0f).size() >= 2 || evading) {
 			maxdist = 3.0f;
+		} else { // try flower positions
+			sortByDistanceTo(pylons, bob->pos);
+			auto m = pylons.front();
+			std::vector<Point2D> cands = { m->pos + sc2::Point2D(2, 0) ,   m->pos + sc2::Point2D(-1, 2),  m->pos + sc2::Point2D(-3, -1), m->pos + sc2::Point2D(0, -3) };			
+			std::vector<sc2::QueryInterface::PlacementQuery> queries;
+			queries.reserve(4);
+			for (int i = 0; i < 4; i++) {
+				queries.push_back(sc2::QueryInterface::PlacementQuery(tobuild, cands[i]));
+			}
+			auto q = Query();
+			auto resp = q->Placement(queries);
+			for (int i = 0; i < 4; i++) {
+				if (resp[i]) {
+					Actions()->UnitCommand(bob,
+						tobuild,
+						cands[i]);
+					busy(bob->tag);
+					return true;
+				}
+			}
+
 		}
+
 		// try ten positions
 		for (int i = 0; i < 25; i++) {
 			float rx = GetRandomScalar();
