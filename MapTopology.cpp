@@ -28,6 +28,11 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 			resourcesPer.push_back(p.second);
 		}
 	}
+	// compute hard points for each mineral line
+	for (int i = 0; i < expansions.size(); i++) {
+		hardPointsPer.emplace_back(ComputeHardPointsInMinerals(i,initial,query,debug));
+	}
+
 	// potential main bases as provided by map
 	const auto & starts = game_info.start_locations;
 	// Determine choke and proxy locations
@@ -216,6 +221,30 @@ const Point3D & MapTopology::FindNearestBase(const Point3D& start) const {
 	return expansions[FindNearestBaseIndex(start)];
 }
 
+const Unit * MapTopology::FindNearestMineral(const sc2::Point3D & start) const 
+{
+	auto max = std::numeric_limits<float>::max();
+	const Unit * target = nullptr;
+	for (auto & v : resourcesPer) {
+		for (auto & m : v) {
+
+			if (m->mineral_contents >= 5) {
+				auto d = DistanceSquared2D(m->pos, start);
+				if (d < max) {
+					target = m;
+					max = d;
+				}
+			}
+		}
+	}
+	return target;
+}
+
+const std::vector<sc2::Point2D>& MapTopology::FindHardPointsInMinerals(int expansionIndex) const
+{
+	return hardPointsPer[expansionIndex];
+}
+
 void MapTopology::debugMap(DebugInterface * debug) {
 	if (debug == nullptr) {
 		return;
@@ -226,10 +255,13 @@ void MapTopology::debugMap(DebugInterface * debug) {
 			std::string text = std::to_string(i);
 			debug->DebugTextOut(text, sc2::Point3D(min->pos.x, min->pos.y, min->pos.z + 0.8f), Colors::Yellow);
 		}
+		for (auto & p : hardPointsPer[i]) {
+			debug->DebugSphereOut(Point3D(p.x, p.y, expansions[i].z + 0.1f), 0.2, Colors::Red);
+		}
 		debug->DebugSphereOut(e + Point3D(0, 0, 0.1f), 2.25f, Colors::Red);
 		std::string text = "expo" + std::to_string(i++);
 		debug->DebugTextOut(text, sc2::Point3D(e.x, e.y, e.z + 2), Colors::Green);
-
+		
 	}
 
 	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
@@ -301,6 +333,204 @@ std::vector<std::pair<Point3D, Units > > Cluster(const Units& units, float dista
 	return clusters;
 }
 
+
+static bool touching(const Unit * a, const Unit *b) {
+	if (a->vespene_contents != 0 && b->vespene_contents != 0) {
+		return abs(a->pos.y - b->pos.y) <= 3 && abs(a->pos.x - b->pos.x) <= 3;
+	}
+	else if (a->vespene_contents != 0 || b->vespene_contents != 0) {
+		return abs(a->pos.y - b->pos.y) <= 2 && abs(a->pos.x - b->pos.x) <= 2.5;
+	}
+	else {
+		return abs(a->pos.y - b->pos.y) <= 1 && abs(a->pos.x - b->pos.x) <= 2;
+	}
+}
+
+std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex, const sc2::ObservationInterface * obs, sc2::QueryInterface * query, sc2::DebugInterface * debug)
+{
+	const sc2::GameInfo & info = obs->GetGameInfo();
+
+	// compute the two closest to each
+	auto & mins = resourcesPer[expansionIndex];
+	auto mat = computeDistanceMatrix(mins);
+
+	auto sz = mins.size();
+	if (sz <= 3) {
+		return {};
+	}
+	std::vector<int> orderedMins;
+
+	// ok now find an edge of the cluster since they are in a line
+	// an edge has the property that both it's neighbors are closer to each other than at least one of them to the edge
+	for (int i = 0; i < sz; i++) {
+		auto neighbors = sortByDistanceTo(mat, i, sz);
+		bool edge = true;
+		for (int j = 1; j < neighbors.size(); j++) {
+			auto dij = mat[i*sz + neighbors[j]];
+			for (int k = 1; k < j; k++) {
+				auto dkj = mat[neighbors[k] * sz + neighbors[j]];
+				if (dij < dkj) {
+					edge = false;
+					break;
+				}
+			}
+			if (!edge)
+				break;
+		}
+		if (edge) {
+			orderedMins.push_back(i);
+			break;
+		}
+		
+/*		// am I on the edge of my two closest
+		auto d1 = mat[i*sz + neighbors[1]];
+		auto d2 = mat[i*sz + neighbors[2]];
+		auto d3 = mat[i*sz + neighbors[3]];
+		auto d12 = mat[neighbors[1] * sz + neighbors[2]];
+		auto d13 = mat[neighbors[1] * sz + neighbors[3]];
+		auto d23 = mat[neighbors[2] * sz + neighbors[3]];
+		if (d12 < d2 && d23 < d3 && d13 < d3 && d14 < d4) {
+			// the distance between them is less than  the distance to one of them.
+			orderedMins.push_back(i);
+			break;
+		}*/
+	}
+	for (int i = 0; i < sz - 1; i++) {
+		auto close = sortByDistanceTo(mat, orderedMins[i], sz);
+		for (int j = 1; j < sz; j++) {
+			if (std::find(orderedMins.begin(), orderedMins.end(), close[j]) == orderedMins.end()) {
+				orderedMins.push_back(close[j]);
+				break;
+			}
+		}
+	}
+#ifdef DEBUG
+	if (true) {
+		int ind = 0;
+		for (auto m : mins) {
+			auto & out = m->pos;
+			debug->DebugTextOut(std::to_string(ind++), Point3D(out.x, out.y, out.z + 0.1f));
+			debug->DebugTextOut(std::to_string(out.x)+","+to_string(out.y), Point3D(out.x, out.y-0.2f, out.z + 0.1f));
+		}
+		ind = 0;
+		for (auto m : orderedMins) {
+			auto & out = mins[m]->pos;
+			debug->DebugTextOut(std::to_string(ind++), Point3D(out.x, out.y + 0.2, out.z + 0.1f));
+		}
+	}
+#endif	
+	
+	// index preceding the hole
+	std::vector<int> holes;
+	for (int i = 0; i < sz - 1; i++) {
+		if (!touching(mins[orderedMins[i]], mins[orderedMins[i + 1]])) {
+			holes.push_back(i);
+		}
+	}
+
+	
+	// chosen
+	
+	std::vector<Point2D> elected;
+
+	for (int hole = 0, hsz = holes.size(); hole < hsz; hole++) {
+		// build grid location for 2x2 placement of a building between minerals
+		// blocking a hole, but oustide the line.
+		std::vector<Point2D> chosen;
+		for (int tg = holes[hole]; tg != holes[hole] + 2; tg++) {
+			auto & min = mins[orderedMins[tg]];
+			// the adjacent possible locations			
+			std::vector<Point2D> adj = {
+				// right of min
+				min->pos + Point2D(1.5f,-2) ,
+				min->pos + Point2D(1.5f,-1) ,
+				min->pos + Point2D(1.5f,0) ,
+				min->pos + Point2D(1.5f,1) ,
+				// left of min
+				min->pos + Point2D(-2.5f,-2) ,
+				min->pos + Point2D(-2.5f,-1) ,
+				min->pos + Point2D(-2.5f,0) ,
+				min->pos + Point2D(-2.5f,1) ,
+				// below
+				min->pos + Point2D(-1.5f,-2) ,
+				min->pos + Point2D(-.5f,-2) ,
+				min->pos + Point2D(0.5f,-2) ,
+				// above
+				min->pos + Point2D(-1.5f,1) ,
+				min->pos + Point2D(-.5f,1) ,
+				min->pos + Point2D(0.5f,1) ,
+			};
+			if (IsVespene(min->unit_type)) {
+				auto mpos = min->pos ;
+				adj = {
+					// right of gas
+					mpos + Point2D(2,-2) ,
+					mpos + Point2D(2,-1) ,
+					mpos + Point2D(2,0) ,
+					mpos + Point2D(2,1) ,
+					// left of gas
+					mpos + Point2D(-3,-2) ,
+					mpos + Point2D(-3,-1), 
+					mpos + Point2D(-3,0) ,
+					mpos + Point2D(-3,1) ,
+					// below
+					mpos + Point2D(-2,-3),
+					mpos + Point2D(-1,-3),
+					mpos + Point2D(0,-3),
+					mpos + Point2D(1,-3),
+					// above
+					mpos + Point2D(-2,2) ,
+					mpos + Point2D(-1,2) ,
+					mpos + Point2D(0,2) ,
+					mpos + Point2D(1,2) ,
+				};
+			}
+#ifdef DEBUG
+			for (auto & p : adj) {
+				debug->DebugSphereOut(Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f), 0.1, Colors::Blue);
+				debug->DebugTextOut(to_string(tg) ,Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f));
+			}
+#endif
+			auto d = Distance2D(expansions[expansionIndex], min->pos);
+			for (auto & p : adj) {
+				if (Placement(info, p) && Distance2D(expansions[expansionIndex], p) >= d - 0.5f) {
+					auto it = find(chosen.begin(), chosen.end(), p);
+					if (it != chosen.end()) {
+						elected.push_back(p);						
+					}
+					else {
+						if (query->Placement(ABILITY_ID::BUILD_PYLON, p)) {
+							chosen.push_back(p);
+						}
+					}
+				}
+			}
+		}
+#ifdef DEBUG
+		for (auto & p : chosen) {
+			debug->DebugSphereOut(Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f), 0.2, Colors::Green);
+		}
+		debug->SendDebug();
+#endif		
+
+	}
+	
+
+#ifdef DEBUG
+	/*for (auto & p : chosen) {
+			debug->DebugSphereOut(Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f), 0.1, Colors::Green);
+		}*/
+
+	for (auto & p : elected) {
+		debug->DebugSphereOut(Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f), 0.2, Colors::Red);
+		debug->DebugTextOut(std::to_string(p.x) + "," + std::to_string(p.y), Point3D(p.x, p.y, expansions[expansionIndex].z + 0.1f));
+	}
+
+	debug->SendDebug();
+#endif
+	
+	return elected;
+}
 
 // Adapted (patched) with respect to version of sc_search.cc of the sc2api
 std::vector<std::pair<Point3D, Units > > MapTopology::CalculateExpansionLocations(const ObservationInterface* observation, QueryInterface* query) {

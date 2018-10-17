@@ -14,16 +14,20 @@ class MapTopology
 	std::vector<int> pocketBases;
 	std::vector<int> naturalBases;
 	std::vector<int> proxyBases;
+	
+	std::vector<std::vector<sc2::Point2D>> hardPointsPer;
 	// each base has a staging area, an open ground to group units before attacking
 	std::vector<sc2::Point2D> stagingFor;	
 	int ourBaseStartLocIndex;
 	// Calculates expansion locations, this call can take on the order of 100ms since it makes blocking queries to SC2 so call it once and cache the reults.
 	// it is modified from original provided by sc2API
 	static std::vector<std::pair<sc2::Point3D, sc2::Units > > CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
+	// compute hard points in mineral lines
+	std::vector<sc2::Point2D> ComputeHardPointsInMinerals(int expansionIndex, const sc2::ObservationInterface * obs, sc2::QueryInterface * query, sc2::DebugInterface * debug);
 public:
-	// raw cache for locations computed for expansions
+	// raw cache for locations computed for expansions, indexed by expansion index
 	std::vector<sc2::Point3D> expansions;
-	std::vector<sc2::Units> resourcesPer;
+	std::vector<sc2::Units> resourcesPer;	
 	// a main is a starting location
 	// a nat is the place you would put your second CC normally
 	// a proxy is an expo that is not immediately obvious to defender, but not too far
@@ -38,6 +42,9 @@ public:
 	// looking for a base ?
 	int FindNearestBaseIndex(const sc2::Point3D& start) const;
 	const sc2::Point3D & FindNearestBase(const sc2::Point3D& start) const;
+	// looking for resources ?
+	const sc2::Unit * FindNearestMineral(const sc2::Point3D& start) const;
+	const std::vector<sc2::Point2D> & FindHardPointsInMinerals(int expansionIndex) const;
 	// call this at game start to build up the info
 	void init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug=nullptr);
 	// call this to see what the topology thinks in debug mode
