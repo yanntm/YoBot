@@ -200,6 +200,21 @@ int MapTopology::getExpansionIndex(Player p, BaseType b) const {
 	}
 }
 
+int MapTopology::FindNearestBaseIndex(const Point2D& start) const {
+	float distance = std::numeric_limits<float>::max();
+	int targetb = 0;
+	int index = 0;
+	for (const auto& u : expansions) {
+		float d = DistanceSquared2D(u, start);		
+		if (d < distance) {
+			distance = d;
+			targetb = index;
+		}
+		index++;
+	}
+	return targetb;
+}
+
 int MapTopology::FindNearestBaseIndex(const Point3D& start) const {
 	float distance = std::numeric_limits<float>::max();
 	int targetb = 0;
@@ -256,7 +271,9 @@ void MapTopology::debugMap(DebugInterface * debug) {
 			debug->DebugTextOut(text, sc2::Point3D(min->pos.x, min->pos.y, min->pos.z + 0.8f), Colors::Yellow);
 		}
 		for (auto & p : hardPointsPer[i]) {
+			std::string text = std::to_string(i);
 			debug->DebugSphereOut(Point3D(p.x, p.y, expansions[i].z + 0.1f), 0.2, Colors::Red);
+			debug->DebugTextOut(text, sc2::Point3D(p.x, p.y, expansions[i].z + 0.8f), Colors::Yellow);
 		}
 		debug->DebugSphereOut(e + Point3D(0, 0, 0.1f), 2.25f, Colors::Red);
 		std::string text = "expo" + std::to_string(i++);
