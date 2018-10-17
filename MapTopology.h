@@ -41,6 +41,7 @@ public:
 	bool hasPockets() const;
 	// looking for a base ?
 	int FindNearestBaseIndex(const sc2::Point3D& start) const;
+	int FindNearestBaseIndex(const sc2::Point2D& start) const;
 	const sc2::Point3D & FindNearestBase(const sc2::Point3D& start) const;
 	// looking for resources ?
 	const sc2::Unit * FindNearestMineral(const sc2::Point3D& start) const;
