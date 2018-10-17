@@ -8,13 +8,34 @@ namespace sc2util {
 		std::sort(units.begin(), units.end(), [start](const Unit * a, const Unit * b) { return DistanceSquared2D(start, a->pos) < DistanceSquared2D(start, b->pos); });
 	}
 
-	std::vector<int> sortByDistanceTo(std::valarray<float> matrix, int ti, size_t sz) {
+	void sortByDistanceTo(std::vector<sc2::Point2D>& units, const sc2::Point2D & start)
+	{
+		std::sort(units.begin(), units.end(), [start](const auto & a, const auto & b) { return DistanceSquared2D(start, a) < DistanceSquared2D(start, b); });
+	}
+
+	std::vector<int> sortByDistanceTo(const std::valarray<float> & matrix, int ti, size_t sz) {
 		std::vector<int> byDist;
 		for (int i = 0; i < sz; i++) {
 			byDist.push_back(i);
 		}
 		std::sort(byDist.begin(), byDist.end(), [matrix, ti, sz](int a, int b) { return matrix[ti*sz + a] < matrix[ti*sz + b]; });
 		return byDist;
+	}
+
+	std::valarray<float> computeDistanceMatrix(const Units & units) {
+		auto sz = units.size();
+		std::valarray<float> matrix(sz *sz); // no more, no less, than a matrix		
+
+		for (int i = 0; i < sz; i++) {
+			// set diagonal to 0
+			matrix[i*sz + i] = 0;
+			for (int j = i + 1; j < sz; j++) {
+				auto d = DistanceSquared2D(units[i]->pos, units[j]->pos);
+				matrix[i*sz + j] = d;
+				matrix[j*sz + i] = d;
+			}
+		}
+		return matrix;
 	}
 
 	std::valarray<float> computeDistanceMatrix(const std::vector<Point3D> & expansions, QueryInterface * query) {
