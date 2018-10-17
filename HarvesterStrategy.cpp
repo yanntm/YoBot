@@ -109,7 +109,7 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 	}
 
 	for (auto it = minerals.begin() ; it != minerals.end(); ) {
-		if ((*it)->mineral_contents < 5) {
+		if ((*it)->mineral_contents <= 5) {
 			int index = it - minerals.begin(); 
 			it = minerals.erase(it);			
 			for (auto & jt : workerAssignedMinerals) {
@@ -188,7 +188,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 
 	if (minerals.empty()) {
 		allminerals.erase(
-			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents < 5; }),
+			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents <= 5; }),
 			allminerals.end()
 		);
 		auto min = sc2util::FindNearestUnit(nexus->pos, allminerals, 10000.0);
