@@ -11,7 +11,7 @@ Based on files of CryptBot ladder example, see https://github.com/Cryptyc/CryptB
 
 This bot is meant to compete in the sc2ai ladder competition : https://www.sc2ai.net/
 
-It did well there, having been ranked up to first place on ladder in season 6.
+It did well there, having been ranked up to first place on ladder in season 6 where it held that place for two weeks.
 
 This Bot Code is placed under Gnu General Public License v3, see LICENSE file.
 This means you can reuse code from it only if you are using a compatible (FOSS) license.
