@@ -169,5 +169,15 @@ namespace sc2util {
 		return true;
 	}
 
+	bool isChronoed(const sc2::Unit * gw)
+	{
+		for (auto buff : gw->buffs) {
+			if (buff == sc2::BUFF_ID::TIMEWARPPRODUCTION) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 
 }

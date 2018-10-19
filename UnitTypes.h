@@ -21,4 +21,6 @@ namespace sc2util {
 	bool IsBuilding(sc2::UNIT_TYPEID type);
 	// any moving enemy with a weapon
 	bool IsArmyUnitType(sc2::UNIT_TYPEID type);
+
+	bool isChronoed(const sc2::Unit * unit);
 }
