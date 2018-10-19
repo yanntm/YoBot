@@ -318,7 +318,7 @@ void HarvesterStrategy::assignTargets(const Units & workers)
 		return (int)d / 5;
 	};
 
-	std::vector<int> targets = allocateTargets(workers, minerals, func	, workerAssignedMinerals);
+	std::vector<int> targets = allocateTargets(workers, minerals, func	, workerAssignedMinerals, getIdealHarvesters() < getCurrentHarvesters());
 	for (int att = 0, e = targets.size(); att < e; att++) {
 		if (targets[att] != -1) {
 			workerAssignedMinerals[workers[att]->tag] = targets[att];			
@@ -326,7 +326,7 @@ void HarvesterStrategy::assignTargets(const Units & workers)
 	}
 }
 
-std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const Units & mins, std::function<int(const Unit *)> & toAlloc, std::unordered_map<Tag, int> current) {
+std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const Units & mins, std::function<int(const Unit *)> & toAlloc, std::unordered_map<Tag, int> current, bool overSat) {
 	std::unordered_map<Tag, int> targetIndexes;
 	for (int i = 0, e = mins.size(); i < e; i++) {
 		targetIndexes.insert_or_assign(mins[i]->tag, i);
@@ -345,7 +345,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 	std::vector<int> freeAgents;
 	std::deque<int> freeMins;
 
-	bool overSat = getIdealHarvesters() < getCurrentHarvesters();
+	
 
 	if (! current.empty()) {
 		int i = 0;
@@ -523,3 +523,80 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	}
 }
 #endif
+
+void MultiHarvesterStrategy::assignTargets(const Units & workers)
+{
+	Units nexi;
+	unordered_map<Tag, int> index;
+	int ind = 0;
+	vector<int> ideals;
+	for (auto & h : perBase) {
+		nexi.push_back(h.nexus);
+		index.insert({ h.nexus->tag,ind++ });
+		ideals.push_back(h.getIdealHarvesters());
+	}
+	std::function<int(const Unit *)> func = [&](const Unit *u) {
+		if (u == nullptr) {
+			return 0;
+		}
+		else {
+			return ideals[index[u->tag]];
+		}
+	};
+
+	std::vector<int> targets = HarvesterStrategy::allocateTargets(workers, nexi, func, workerAssignedMinerals, getIdealHarvesters() < getCurrentHarvesters());
+	std::vector<sc2::Units> workPer(nexi.size(), sc2::Units());
+	for (int att = 0, e = targets.size(); att < e; att++) {
+		if (targets[att] != -1) {
+			workerAssignedMinerals[workers[att]->tag] = targets[att];
+		}
+	}
+}
+
+void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger)
+{
+	bool rosterChange = false;
+	for (auto it = perBase.begin(); it != perBase.end(); ) {
+		if (it->nexus == nullptr) {
+			it = perBase.erase(it);
+			workerAssignedMinerals.clear();
+			rosterChange = true;
+		}
+		else {
+			++it;
+		}
+	}
+	
+	unordered_set<Tag> now;
+	// create new workers
+	for (auto u : workers) {
+		if (u->is_alive) {
+			now.insert(u->tag);
+		}
+	}
+	// erase irrelevant ones
+	for (auto it = begin(workerAssignedMinerals); it != end(workerAssignedMinerals);)
+	{
+		const Tag & tag = it->first;
+		if (now.find(tag) == now.end())
+		{
+			it = workerAssignedMinerals.erase(it);
+			rosterChange = true;
+		}
+		else
+			++it;
+	}
+	if (rosterChange) {
+		assignTargets(workers);
+	}
+	std::vector<Units> workPer(perBase.size());
+	for (auto & w : workers) {
+		auto e = workerAssignedMinerals[w->tag];		
+		if (e != -1) {
+			workPer[e].push_back(w);
+		}
+	}
+	for (int i = 0; i < perBase.size(); i++) {
+		perBase[i].OnStep(workPer[i], actions, inDanger);
+	}
+}

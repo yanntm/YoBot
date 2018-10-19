@@ -6,8 +6,11 @@
 
 
 
+
+
 class HarvesterStrategy
 {
+	friend class MultiHarvesterStrategy;
 	enum HarvestState {
 		MovingToMineral, //in-transit to mineral-crystal
 		GatheringMineral, //actively mining the crystal with ability
@@ -48,7 +51,7 @@ class HarvesterStrategy
 	void updateRoster(const sc2::Units & current);
 	// compute a distribution/pairing of workers to minerals
 	void assignTargets(const sc2::Units & workers);
-	std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {});
+	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {}, bool overSat=false);
 public:
 	
 	int getIdealHarvesters();
@@ -66,5 +69,35 @@ public:
 	std::unordered_map<sc2::Tag, int> lastTripTime; // timing per probe
 	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
 #endif
+};
+
+class MultiHarvesterStrategy {
+	std::unordered_map<sc2::Tag, int> workerAssignedMinerals; //for each worker, which base are they assigned?
+	std::vector<HarvesterStrategy> perBase;
+	long frame = 0;
+public:
+	int getIdealHarvesters() {
+		int sum = 0;
+		for (auto & h : perBase) {
+			sum += h.getIdealHarvesters();
+		}
+		return sum;
+	}
+	int getCurrentHarvesters() {
+		int sum = 0;
+		for (auto & h : perBase) {
+			sum += h.getCurrentHarvesters();
+		}
+		return sum;
+	}
+
+	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs) {
+		perBase.push_back(HarvesterStrategy());
+		perBase.rbegin()->initialize(nexus, minerals, obs);
+	}
+
+	void assignTargets(const sc2::Units & workers);
+
+	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger);
 };
 
