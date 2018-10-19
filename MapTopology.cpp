@@ -12,6 +12,10 @@ using namespace sc2util;
 void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug)
 {
 	const GameInfo& game_info = initial->GetGameInfo();
+	this->width = game_info.width;
+	this->height = game_info.height;
+	this->reserved = vector<bool>(height*width, false);
+
 	// compute a good place to put a nexus on the map : minerals and gas
 	{
 		auto clust = MapTopology::CalculateExpansionLocations(initial, query);		
@@ -32,7 +36,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	for (int i = 0; i < expansions.size(); i++) {
 		hardPointsPer.emplace_back(ComputeHardPointsInMinerals(i,initial,query,debug));
 	}
-
+	
 	// potential main bases as provided by map
 	const auto & starts = game_info.start_locations;
 	// Determine choke and proxy locations
@@ -243,7 +247,7 @@ const Unit * MapTopology::FindNearestMineral(const sc2::Point3D & start) const
 	for (auto & v : resourcesPer) {
 		for (auto & m : v) {
 
-			if (m->mineral_contents >= 5) {
+			if (IsMineral(m->unit_type)) {
 				auto d = DistanceSquared2D(m->pos, start);
 				if (d < max) {
 					target = m;
@@ -280,6 +284,19 @@ void MapTopology::debugMap(DebugInterface * debug) {
 		debug->DebugTextOut(text, sc2::Point3D(e.x, e.y, e.z + 2), Colors::Green);
 		
 	}
+	/* very costly to get z pos, disabled
+	int res = 0;
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			if (reserved[y*width + x]) {	
+				auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
+				debug->DebugBoxOut(Point3D(x, y, z), Point3D(x+1, y+1, z+.3f), Colors::Red);
+				res++;
+			}
+		}
+	}
+	debug->DebugTextOut("Reserved :" + to_string(res));
+	*/
 
 	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
 		debug->DebugTextOut("main" + std::to_string(startloc), expansions[mainBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
@@ -529,7 +546,11 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 		}
 		debug->SendDebug();
 #endif		
-
+		Units copy;
+		for (auto i : orderedMins) {
+			copy.emplace_back(mins[i]);
+		}
+		mins = copy;
 	}
 	
 
@@ -652,6 +673,49 @@ std::vector<std::pair<Point3D, Units > > MapTopology::CalculateExpansionLocation
 	return expansion_locations;
 }
 
+bool MapTopology::Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const
+{
+	return PlacementI(info, sc2::Point2DI((int)point.x, (int)point.y));
+}
+
+
+bool  MapTopology::PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const
+{
+	if (pointI.x < 0 || pointI.x >= width || pointI.y < 0 || pointI.y >= height)
+	{
+		return false;
+	}
+	if (reserved[pointI.y*width + pointI.x]) {
+		return false;
+	}
+	unsigned char encodedPlacement = info.placement_grid.data[pointI.x + ((height - 1) - pointI.y) * width];
+	bool decodedPlacement = encodedPlacement == 255 ? true : false;
+	return decodedPlacement;
+}
+
+void MapTopology::reserve(const sc2::Point2D & point)
+{
+	auto p = sc2::Point2DI((int)point.x, (int)point.y);
+	reserved[p.y*width + p.x] = true;
+}
+
+void MapTopology::reserve(int expIndex)
+{
+	for (auto & r : resourcesPer[expIndex]) {
+		auto cc = expansions[expIndex];
+		auto vnorm = (r->pos - cc);
+		vnorm /= Distance2D(vnorm, {0,0});
+		for (float f = 2, max = Distance2D(cc, r->pos); f < max; f += .25) {
+			auto torem = cc + vnorm * f;
+			reserve(torem);
+			reserve(torem + Point2D(1,0));
+			reserve(torem + Point2D(0,1));
+			reserve(torem + Point2D(-1, 0));
+			reserve(torem + Point2D(0, -1));
+		}		
+	}
+}
+
 namespace sc2util {
 	// code for these two is taken from 5minBot, by Archiatrus.
 	bool Pathable(const sc2::GameInfo & info, const sc2::Point2D & point)
@@ -668,23 +732,6 @@ namespace sc2util {
 		return decodedPlacement;
 	}
 
-	bool Placement(const sc2::GameInfo & info, const sc2::Point2D & point)
-	{
-		return PlacementI(info, sc2::Point2DI((int)point.x, (int)point.y));
-	}
 
-
-	bool PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI)
-	{
-		if (pointI.x < 0 || pointI.x >= info.width || pointI.y < 0 || pointI.y >= info.width)
-		{
-			return false;
-		}
-
-
-		unsigned char encodedPlacement = info.placement_grid.data[pointI.x + ((info.height - 1) - pointI.y) * info.width];
-		bool decodedPlacement = encodedPlacement == 255 ? true : false;
-		return decodedPlacement;
-	}
 
 }
