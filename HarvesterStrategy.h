@@ -4,10 +4,6 @@
 #include "sc2api/sc2_client.h"
 #include <unordered_map>
 
-
-
-
-
 class HarvesterStrategy
 {
 	friend class MultiHarvesterStrategy;
@@ -43,9 +39,9 @@ class HarvesterStrategy
 	std::unordered_map<sc2::Tag, WorkerState> workerStates; //what each worker is doing ('task', not 'job')
 
 	// a spot close to mineral, good for accelerating to
-	static sc2::Point2D calcMagicSpot(const sc2::Unit * mineral, const sc2::Unit* nexus);
+	static sc2::Point2D calcMagicSpot(const sc2::Unit * mineral, const sc2::Unit* nexus, const sc2::GameInfo & info);
 	// a spot close to nexus, good for accelerating to
-	static sc2::Point2D calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info);
+	static sc2::Point2D calcNexusMagicSpot(const sc2::Point2D & minpos, const sc2::Unit* nexus, const sc2::GameInfo & info);
 	// update and cleanup workerStates, create & init states for new hires, cleanup guys that got fired
 	// i.e. maintenance operations on workerStates & workerAssignedMinerals
 	void updateRoster(const sc2::Units & current);
@@ -59,7 +55,7 @@ public:
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs);
 	
-	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger = false);
+	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger = false);
 
 #ifdef DEBUG
 	long frame = 0;
@@ -98,6 +94,6 @@ public:
 
 	void assignTargets(const sc2::Units & workers);
 
-	void OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger);
+	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger);
 };
 

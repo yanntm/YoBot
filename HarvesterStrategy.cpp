@@ -10,48 +10,51 @@ using namespace sc2;
 
 
 
-sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus) {
-	auto minpos = mineral->pos;
+sc2::Point2D HarvesterStrategy::calcMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
 	if (nexus == nullptr) {
-		return minpos;
+		return mineral->pos;
 	}
-	auto pos1 = minpos + Point3D(-.25f, 0,0);
-	auto pos2 = minpos + Point3D(+.25f, 0,0);
-	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
-		minpos = pos1;
+
+	std::vector<Point2D> points;
+	points.reserve(5);
+	points.emplace_back(mineral->pos + Point2D(-.5f, 0));
+	points.emplace_back(mineral->pos + Point2D(-.25f, 0));
+	points.emplace_back(mineral->pos);
+	points.emplace_back(mineral->pos + Point2D(+.25f, 0));
+	points.emplace_back(mineral->pos + Point2D(.5f, 0));
+
+	for (auto & p : points) {
+		// a vector from mineral to nexus
+		auto vec = nexus->pos - p;
+		// normalize
+		vec /= Distance2D(Point2D(0, 0), vec);
+		// add to mineral position
+		p += vec * 0.85f;
 	}
-	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos2)) {
-		minpos = pos2;
+	float dmin = std::numeric_limits<float>::max();
+	Point2D res = mineral->pos;
+	for (auto & p : points) {
+		auto dd = DistanceSquared2D(nexus->pos, p);
+		if (sc2util::Pathable(info,p)) {
+			if (dd < dmin) {
+				dmin = dd;
+				res = p;
+			}
+		}
 	}
-	
-	// a vector from mineral to nexus
-	auto vec = nexus->pos - minpos;
-	// normalize
-	vec /= Distance2D(Point2D(0, 0), vec);
-	// add to mineral position
-	return minpos + vec * 0.85f;
+	return res;
 }
 
-sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Unit* mineral, const sc2::Unit* nexus, const sc2::GameInfo & info) {
-	auto minpos = mineral->pos;
+sc2::Point2D HarvesterStrategy::calcNexusMagicSpot(const sc2::Point2D & minpos, const sc2::Unit* nexus, const sc2::GameInfo & info) {
 	if (nexus == nullptr) {
 		return minpos;
 	}
-	auto pos1 = minpos + Point3D(-.25f, 0, 0);
-	auto pos2 = minpos + Point3D(+.25f, 0, 0);
-	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos1)) {
-		minpos = pos1;
-	}
-	if (DistanceSquared2D(nexus->pos, minpos) > DistanceSquared2D(nexus->pos, pos2)) {
-		minpos = pos2;
-	}
-
 	// a vector from nexus to mineral
 	auto vec = minpos - nexus->pos ;
 	// normalize
 	vec /= Distance2D(Point2D(0, 0), vec);
 	for (int i = 0; i < 20; i++) {
-		auto totry = nexus->pos + vec * (1.0f + 0.1f * i);
+		auto totry = nexus->pos + vec * (1.9f + 0.1f * i);
 		if (sc2util::Pathable(info, totry)) {
 			return totry;
 		}
@@ -164,15 +167,15 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
 	updateRoster(Units());
 	for (auto targetMineral : this->minerals) {
-		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral,nexus);
+		const sc2::Point2D magicSpot = calcMagicSpot(targetMineral,nexus,obs->GetGameInfo());
 		magicSpots.insert_or_assign(targetMineral->tag, magicSpot);
-		auto magicNexus = calcNexusMagicSpot(targetMineral,nexus,obs->GetGameInfo());
+		auto magicNexus = calcNexusMagicSpot(magicSpot,nexus,obs->GetGameInfo());
 		magicNexusSpots.insert_or_assign(targetMineral->tag, magicNexus);
 	}
 	allminerals = obs->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return sc2util::IsMineral(u.unit_type); });
 }
 
-void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * actions, bool inDanger)
+void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::ObservationInterface * obs, ActionInterface * actions, bool inDanger)
 {
 #ifdef DEBUG
 	frame++;	
@@ -294,10 +297,11 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, ActionInterface * acti
 			if (p->orders.empty()) {
 				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
 			}
-			else	if (p->orders[0].ability_id == sc2::ABILITY_ID::HARVEST_GATHER)
+			else if (p->orders[0].ability_id == sc2::ABILITY_ID::HARVEST_GATHER)
 			{
 				//keep worker unit at its mineral field
-				if (p->orders[0].target_unit_tag != targetMineral->tag) //stay on assigned field
+				const Unit * min = obs->GetUnit(p->orders[0].target_unit_tag);
+				if (p->orders[0].target_unit_tag != targetMineral->tag && (min == nullptr || min->mineral_contents > 5) )//stay on assigned field unless it's killing an empty field
 				{
 					actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
 				}
@@ -553,7 +557,7 @@ void MultiHarvesterStrategy::assignTargets(const Units & workers)
 	}
 }
 
-void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, sc2::ActionInterface * actions, bool inDanger)
+void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger)
 {
 	bool rosterChange = false;
 	for (auto it = perBase.begin(); it != perBase.end(); ) {
@@ -597,6 +601,6 @@ void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, sc2::ActionInter
 		}
 	}
 	for (int i = 0; i < perBase.size(); i++) {
-		perBase[i].OnStep(workPer[i], actions, inDanger);
+		perBase[i].OnStep(workPer[i], obs, actions, inDanger);
 	}
 }
