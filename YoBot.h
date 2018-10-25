@@ -819,13 +819,15 @@ public:
 						}
 					}
 					else {
-						if (Distance2D(scout->pos, v[0]) < 3.0f) {
-							Actions()->UnitCommand(scout, ABILITY_ID::SMART,  (v[1] - tg)*1.2 + tg );
+						if (!v.empty()) {
+							if (Distance2D(scout->pos, v[0]) < 3.0f && v.size() > 1) {								
+								Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[1] - tg)*1.2 + tg);
+							}
+							else {
+								Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[0] - tg)*1.2 + tg);
+							}
+							busy(scout->tag);
 						}
-						else {
-							Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[0] - tg)*1.2 + tg);
-						}
-						busy(scout->tag);
 					}
 				}
 			} else {
