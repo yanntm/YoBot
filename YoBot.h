@@ -125,7 +125,7 @@ public:
 			, minerals.end()
 		);
 		harvesting.initialize(nexus, minerals, Observation());
-		harvesting.OnStep(probes, Actions());
+		harvesting.OnStep(probes, Observation(),Actions());
 
 
 		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
@@ -1116,10 +1116,10 @@ public:
 		auto enemies = Observation()->GetUnits(Unit::Alliance::Enemy, [mainpos](const Unit & e) { return DistanceSquared2D(e.pos, mainpos) < 100.0f; });
 		if (nexus != nullptr) {
 			if (enemies.size() >= 3) {
-				harvesting.OnStep(har, Actions(), true);
+				harvesting.OnStep(har, Observation(), Actions(), true);
 			}
 			else {
-				harvesting.OnStep(har, Actions(), false);
+				harvesting.OnStep(har, Observation(), Actions(), false);
 			}
 		}
 		else {
@@ -1715,8 +1715,11 @@ private:
 							auto candidate = Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f);
 							if (map.Placement(Observation()->GetGameInfo(), candidate) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
 								Actions()->UnitCommand(unit_to_build,
-									ABILITY_ID::BUILD_PYLON,
+									ABILITY_ID::MOVE,
 									candidate);
+								Actions()->UnitCommand(unit_to_build,
+									ABILITY_ID::BUILD_PYLON,
+									candidate,true);
 								minerals -= 100;
 								busy(unit_to_build->tag);
 								return true;
@@ -1786,7 +1789,13 @@ private:
 				if (good) {
 					minerals -= 100;
 					Actions()->UnitCommand(unit_to_build,
-						ABILITY_ID::BUILD_PYLON, candidate);
+						ABILITY_ID::MOVE,
+						candidate);
+					Actions()->UnitCommand(unit_to_build,
+						ABILITY_ID::BUILD_PYLON,
+						candidate, true); 
+					//Actions()->UnitCommand(unit_to_build,
+					//	ABILITY_ID::BUILD_PYLON, candidate);
 					busy(unit_to_build->tag);
 					return true;
 				}
