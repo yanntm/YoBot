@@ -399,7 +399,7 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 	for (int i = 0; i < sz; i++) {
 		auto neighbors = sortByDistanceTo(mat, i, sz);
 		bool edge = true;
-		for (int j = 1; j < neighbors.size(); j++) {
+		for (int j = 1; j < 6 && j < neighbors.size(); j++) {
 			auto dij = mat[i*sz + neighbors[j]];
 			for (int k = 1; k < j; k++) {
 				auto dkj = mat[neighbors[k] * sz + neighbors[j]];
@@ -527,7 +527,7 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 #endif
 			auto d = Distance2D(expansions[expansionIndex], min->pos);
 			for (auto & p : adj) {
-				if (Placement(info, p) && Distance2D(expansions[expansionIndex], p) >= d - 0.5f) {
+				if (Placement(info, p) && Distance2D(expansions[expansionIndex], p) >= d - .8f) {
 					auto it = find(chosen.begin(), chosen.end(), p);
 					if (it != chosen.end()) {
 						elected.push_back(p);						
@@ -546,13 +546,13 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 		}
 		debug->SendDebug();
 #endif		
-		Units copy;
-		for (auto i : orderedMins) {
-			copy.emplace_back(mins[i]);
-		}
-		mins = copy;
 	}
-	
+	Units copy;
+	for (auto i : orderedMins) {
+		copy.emplace_back(mins[i]);
+	}
+	mins = copy;
+
 
 #ifdef DEBUG
 	/*for (auto & p : chosen) {
