@@ -264,6 +264,19 @@ const std::vector<sc2::Point2D>& MapTopology::FindHardPointsInMinerals(int expan
 	return hardPointsPer[expansionIndex];
 }
 
+void MapTopology::debugPath(const std::vector<sc2::Point2DI> path, DebugInterface * debug, const ObservationInterface *obs)
+{
+	if (debug == nullptr) {
+		return;
+	}
+	for (int i = 0, e = path.size(); i < e-1; i++) {
+		auto z = obs->TerrainHeight({ path[i].x + 0.5f, path[i].y + 0.5f });
+		debug->DebugLineOut(			
+			{ path[i].x + 0.5f,path[i].y + 0.5f, z+0.2f },
+			{ path[i + 1].x + 0.5f,path[i + 1].y + 0.5f,z + 0.2f }, Colors::Green);
+	}
+}
+
 void MapTopology::debugMap(DebugInterface * debug) {
 	if (debug == nullptr) {
 		return;
@@ -305,6 +318,7 @@ void MapTopology::debugMap(DebugInterface * debug) {
 		debug->DebugTextOut("proxy" + std::to_string(startloc), expansions[proxyBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 	}
 }
+
 
 static const float PI = 3.1415927f;
 // Directly taken from sc2_search.cc of sc2api
@@ -721,17 +735,17 @@ namespace sc2util {
 	bool Pathable(const sc2::GameInfo & info, const sc2::Point2D & point)
 	{
 		sc2::Point2DI pointI((int)point.x, (int)point.y);
+		return Pathable(info, pointI);
+	}
+	bool Pathable(const sc2::GameInfo & info, const sc2::Point2DI & pointI) {
 		if (pointI.x < 0 || pointI.x >= info.width || pointI.y < 0 || pointI.y >= info.width)
 		{
 			return false;
 		}
-
-
 		unsigned char encodedPlacement = info.pathing_grid.data[pointI.x + ((info.height - 1) - pointI.y) * info.width];
 		bool decodedPlacement = encodedPlacement == 255 ? false : true;
 		return decodedPlacement;
 	}
-
 
 
 }
