@@ -53,6 +53,7 @@ public:
 	void init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug=nullptr);
 	// call this to see what the topology thinks in debug mode
 	void debugMap(sc2::DebugInterface * debug);
+	void debugPath(const std::vector<sc2::Point2DI> path, sc2::DebugInterface * debug,const sc2::ObservationInterface *obs);
 	// query build grid at given point
 	bool Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const;
 	bool PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const;
@@ -60,10 +61,10 @@ public:
 	void reserve(const sc2::Point2D & point);
 	// reserve mineral/gas tiles for an expansion index
 	void reserve(int expIndex);
-
 };
 
 namespace sc2util {
 	// query pathing grid at given point
 	bool Pathable(const sc2::GameInfo & info, const sc2::Point2D & point);
+	bool Pathable(const sc2::GameInfo & info, const sc2::Point2DI & point);
 }
