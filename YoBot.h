@@ -9,6 +9,7 @@
 
 #include "YoAgent.h"
 #include "HarvesterStrategy.h"
+#include "AStar.h"
 #include <valarray>
 #include <unordered_set>
 #include <iostream>
@@ -749,8 +750,12 @@ public:
 
 			int enemies = estimateEnemyStrength();
 			Debug()->DebugTextOut("Current enemy :" + std::to_string(enemies));
+			
+			auto path = AstarSearchPath(bob->pos, map.getPosition(map.ally,map.nat), Observation()->GetGameInfo());
+			map.debugPath(path, Debug(), Observation());			
 
 			Debug()->SendDebug();
+			
 			//sc2::SleepFor(20);
 
 		}
@@ -803,37 +808,45 @@ public:
 		}
 		if (scout != nullptr && !isBusy(scout->tag) && frame > 400 ) {
 			auto & tg = map.getPosition(MapTopology::enemy, MapTopology::main);
-			if (!evade(scout, tg)&& !orderBusy(scout)) {
-				if (Distance2D(scout->pos, tg) < 10.0f) {
-					auto v = map.FindHardPointsInMinerals(map.getExpansionIndex(MapTopology::enemy, MapTopology::main));
-					sortByDistanceTo(v, scout->pos);
+			if (!orderBusy(scout)) {
+				if (!evade(scout, tg)) {
+					if (Distance2D(scout->pos, tg) < 10.0f) {
+						auto v = map.FindHardPointsInMinerals(map.getExpansionIndex(MapTopology::enemy, MapTopology::main));
+						sortByDistanceTo(v, scout->pos);
 
-					if (minerals >= 100 && pylons.size() < 5) {
-						for (auto & p : v) {
-							if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
-								Actions()->UnitCommand(scout, ABILITY_ID::BUILD_PYLON, p);
-								minerals -= 100;
-								busy(scout->tag);
-								break;
+						if (minerals >= 100 && pylons.size() < 5) {
+
+							
+
+							for (auto & p : v) {
+								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
+									
+									Actions()->UnitCommand(scout, ABILITY_ID::MOVE, p);
+									Actions()->UnitCommand(scout, ABILITY_ID::BUILD_PYLON, p,true);
+									minerals -= 100;
+									busy(scout->tag);
+									break;
+								}
 							}
 						}
-					}
-					else {
-						if (!v.empty()) {
-							if (Distance2D(scout->pos, v[0]) < 3.0f && v.size() > 1) {								
-								Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[1] - tg)*1.2 + tg);
+						else {
+							if (!v.empty()) {
+								if (Distance2D(scout->pos, v[0]) < 3.0f && v.size() > 1) {
+									Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[1] - tg)*1.2 + tg);
+								}
+								else {
+									Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[0] - tg)*1.2 + tg);
+								}
+								busy(scout->tag);
 							}
-							else {
-								Actions()->UnitCommand(scout, ABILITY_ID::SMART, (v[0] - tg)*1.2 + tg);
-							}
-							busy(scout->tag);
 						}
 					}
 				}
-			} else {
-				Actions()->UnitCommand(scout, ABILITY_ID::ATTACK, tg);
+				//else {
+				//	Actions()->UnitCommand(scout, ABILITY_ID::MOVE, tg);
+				//	busy(scout->tag);
+				//}
 			}
-			busy(scout->tag);
 		}
 	
 
