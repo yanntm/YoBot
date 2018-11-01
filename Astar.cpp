@@ -19,7 +19,7 @@ float * computeWeightMap(const sc2::GameInfo & info, const sc2::UnitTypes & type
 	const int wsize = info.width * info.height;
 	float * weights = new float[wsize];
 	for (int x = 0; x < info.width; x++) {
-		for (int y = 0; y < info.width; y++) {
+		for (int y = 0; y < info.height; y++) {
 			auto w = sc2util::Pathable(info, sc2::Point2DI(x, y)) ? 1.0f : std::numeric_limits<float>::max();
 			weights[x + y * info.width] = w;
 		}
@@ -40,7 +40,14 @@ float * computeWeightMap(const sc2::GameInfo & info, const sc2::UnitTypes & type
 		for (int x = (int)-r; x <= (int)r; x++) {
 			for (int y = (int)-r; y <= (int)r; y++) {
 				if (x*x + y * y <= r2) {
-					weights[(int)u->pos.x + x + ((int)u->pos.y + y)* info.width] += 1;
+					auto xp = (int)u->pos.x + x;
+					auto yp = (int)u->pos.y + y);
+					if (xp >= 0 && xp < info.width && yp >= 0 && yp < info.height) {
+						auto & oldw = weights[xp + (yp* info.width)];
+						if (oldw < std::numeric_limits<float>::max()) {
+							oldw += 3.0f;
+						}
+					}
 				}
 			}
 		}		
