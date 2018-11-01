@@ -15,10 +15,12 @@ class MapTopology
 	std::vector<int> naturalBases;
 	std::vector<int> proxyBases;
 	
+	
+
 	std::vector<std::vector<sc2::Point2D>> hardPointsPer;
 	// each base has a staging area, an open ground to group units before attacking
 	std::vector<sc2::Point2D> stagingFor;	
-	int ourBaseStartLocIndex;
+	
 	// Calculates expansion locations, this call can take on the order of 100ms since it makes blocking queries to SC2 so call it once and cache the reults.
 	// it is modified from original provided by sc2API
 	static std::vector<std::pair<sc2::Point3D, sc2::Units > > CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
@@ -28,9 +30,11 @@ class MapTopology
 	int width;
 	int height;
 public:
+	int ourBaseStartLocIndex;
 	// raw cache for locations computed for expansions, indexed by expansion index
 	std::vector<sc2::Point3D> expansions;
 	std::vector<sc2::Units> resourcesPer;	
+	std::vector< std::vector<int> > distanceSortedBasesPerPlayer;
 	// a main is a starting location
 	// a nat is the place you would put your second CC normally
 	// a proxy is an expo that is not immediately obvious to defender, but not too far

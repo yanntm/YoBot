@@ -110,9 +110,10 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 			workerStates[(*i)->tag].overlap = overlap ? Overlapping : Distinct;
 		}
 	}
-
+	
 	for (auto it = minerals.begin() ; it != minerals.end(); ) {
-		if ((*it)->mineral_contents <= 5) {
+
+		if (IsVisible()(**it) && (*it)->mineral_contents <= 5) {
 			int index = it - minerals.begin(); 
 			it = minerals.erase(it);			
 			for (auto & jt : workerAssignedMinerals) {
@@ -136,7 +137,7 @@ void HarvesterStrategy::updateRoster(const sc2::Units & current)
 }
 
 
-int HarvesterStrategy::getIdealHarvesters()
+int HarvesterStrategy::getIdealHarvesters() const
 {
 	if (nexus == nullptr || ! nexus->is_alive)
 		return 0;
@@ -154,7 +155,7 @@ int HarvesterStrategy::getIdealHarvesters()
 	return ideal;
 }
 
-int HarvesterStrategy::getCurrentHarvesters()
+int HarvesterStrategy::getCurrentHarvesters() const
 {
 	return workerAssignedMinerals.size();
 }
@@ -164,6 +165,10 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 	*this = HarvesterStrategy();
 	this->nexus = nexus;
 	this->minerals=minerals;
+	this->minerals.erase(
+		remove_if(this->minerals.begin(), this->minerals.end(), [](auto & u) {return sc2util::IsVespene(u->unit_type); })
+		, this->minerals.end()
+	);
 	sort(this->minerals.begin(), this->minerals.end(), [nexus](auto &a, auto &b) { return DistanceSquared2D(a->pos, nexus->pos) < DistanceSquared2D(b->pos, nexus->pos); });
 	updateRoster(Units());
 	for (auto targetMineral : this->minerals) {
@@ -451,7 +456,7 @@ std::vector<int> HarvesterStrategy::allocateTargets(const Units & probes, const 
 
 
 #ifdef DEBUG
-void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs)
+void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const
 {
 	double avg = 0;
 	if (!roundtrips.empty()) {
@@ -575,6 +580,10 @@ void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::Obser
 	// create new workers
 	for (auto u : workers) {
 		if (u->is_alive) {
+			auto it = workerAssignedMinerals.find(u->tag);
+			if (it == workerAssignedMinerals.end()) {				
+				rosterChange = true;
+			}
 			now.insert(u->tag);
 		}
 	}
@@ -603,4 +612,12 @@ void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::Obser
 	for (int i = 0; i < perBase.size(); i++) {
 		perBase[i].OnStep(workPer[i], obs, actions, inDanger);
 	}
+}
+
+void MultiHarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const
+{
+	for (const auto & v : perBase) {
+		v.PrintDebug(debug, obs);
+	}
+		
 }

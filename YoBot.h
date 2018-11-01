@@ -22,7 +22,7 @@ using namespace sc2util;
 
 class YoBot : public YoAgent {
 public:
-	HarvesterStrategy harvesting;
+	MultiHarvesterStrategy harvesting;
 
 	virtual void OnGameStart() final {
 		std::cout << "YoBot will kill you!" << std::endl;
@@ -120,13 +120,9 @@ public:
 
 		if (scout != nullptr) 
 			probes.erase(std::find(probes.begin(), probes.end(), scout));
-		Units minerals = map.resourcesPer[map.getExpansionIndex(MapTopology::ally, MapTopology::main)];
-		minerals.erase(
-			remove_if(minerals.begin(), minerals.end(), [](auto u) { return u->mineral_contents == 0; })
-			, minerals.end()
-		);
-		harvesting.initialize(nexus, minerals, Observation());
-		harvesting.OnStep(probes, Observation(),Actions());
+		
+		harvesting.initialize(nexus, map.resourcesPer[map.FindNearestBaseIndex(nexus->pos)], Observation());
+		harvesting.OnStep(probes, Observation(),Actions(),false);
 
 
 		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
@@ -151,15 +147,16 @@ public:
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS) {
 			const Unit* mineral_target = FindNearestMineralPatch(unit->pos);
 			Actions()->UnitCommand(unit, ABILITY_ID::RALLY_NEXUS, mineral_target);
-			for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
-				Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, mineral_target);
-				busy(p->tag);
-			}		
+			//for (auto p : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE))) {
+			//	Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, mineral_target);
+			//	busy(p->tag);
+			//}
 			if (nexus == nullptr) {
 				nexus = unit;
-				int index = map.FindNearestBaseIndex(nexus->pos);
-				harvesting.initialize(nexus, map.resourcesPer[index], Observation());
 			}
+			harvesting.initialize(unit, map.resourcesPer[map.FindNearestBaseIndex(unit->pos)], Observation());
+			
+			buildingNexus = false;
 		}
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY) {
 			const Unit* mineral_target = FindNearestMineralPatch(unit->pos);
@@ -289,7 +286,7 @@ public:
 	bool evade(const Unit * unit, Point2D goal) {
 		
 		auto nmies = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
-			return (IsArmyUnitType(u.unit_type) || isStaticDefense(u.unit_type) || IsWorkerType(u.unit_type)) && Distance2D(unit->pos, u.pos) < std::max(6.0f, 1.5f + getRange(&u)); });
+			return (IsArmyUnitType(u.unit_type) || isStaticDefense(u.unit_type) || IsWorkerType(u.unit_type)) && Distance2D(unit->pos, u.pos) < std::max(6.0f, 1.5f + getRange(&u, Observation()->GetUnitTypeData())); });
 		if (nmies.empty()) {
 			return false;
 		}
@@ -693,6 +690,7 @@ public:
 	bool needCannons;
 	bool needImmo;
 	bool reinforce;
+	bool buildingNexus;
 
 	virtual void OnYoStep() final {
 
@@ -742,7 +740,7 @@ public:
 					continue;
 				}
 				Debug()->DebugSphereOut(u->pos + Point3D(0, 0, 0.2f), u->radius, Colors::Green);
-				float range = getRange(u);
+				float range = getRange(u,Observation()->GetUnitTypeData());
 				if (range != 0) {
 					Debug()->DebugSphereOut(u->pos + Point3D(0, 0, 0.2f), range, Colors::Red);
 				}
@@ -750,19 +748,17 @@ public:
 
 			int enemies = estimateEnemyStrength();
 			Debug()->DebugTextOut("Current enemy :" + std::to_string(enemies));
-			
-			auto path = AstarSearchPath(bob->pos, map.getPosition(map.ally,map.nat), Observation()->GetGameInfo());
-			map.debugPath(path, Debug(), Observation());			
-
+						
 			Debug()->SendDebug();
 			
+
 			//sc2::SleepFor(20);
 
 		}
 #endif
 		//sc2::SleepFor(20);
-
-		if (frame == 400 && scout != nullptr) {
+		auto probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+		if (frame == 400 && scout != nullptr && probs.size() > 2) {
 			// return minerals
 			if (IsCarryingMinerals(*scout)) {
 				Actions()->UnitCommand(scout, ABILITY_ID::HARVEST_RETURN);
@@ -774,7 +770,7 @@ public:
 			busy(scout->tag);
 		}
 		Units pylons = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PYLON));
-
+		
 		
 		if (frame % 50 == 0 && frame > 50) {
 			staticd = 0;
@@ -798,30 +794,35 @@ public:
 		}
 
 		bool evading = false;
-		if (bob != nullptr && !isBusy(bob->tag)) {
+		if (bob != nullptr && !isBusy(bob->tag) && probs.size() > 2) {
 			if (! orderBusy(bob)) {
 				evading = evade(bob,proxy);
 				if (!evading && (! bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) ) {
 					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
+					busy(bob->tag);
 				}
 			}
 		}
-		if (scout != nullptr && !isBusy(scout->tag) && frame > 400 ) {
+		if (scout != nullptr && !isBusy(scout->tag) && frame > 400 && probs.size() > 2) {
 			auto & tg = map.getPosition(MapTopology::enemy, MapTopology::main);
 			if (!orderBusy(scout)) {
 				if (!evade(scout, tg)) {
-					if (Distance2D(scout->pos, tg) < 10.0f) {
+					if (Distance2D(scout->pos, tg) < 15.0f) {
 						auto v = map.FindHardPointsInMinerals(map.getExpansionIndex(MapTopology::enemy, MapTopology::main));
 						sortByDistanceTo(v, scout->pos);
 
 						if (minerals >= 100 && pylons.size() < 5) {
-
-							
-
 							for (auto & p : v) {
 								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
 									
-									Actions()->UnitCommand(scout, ABILITY_ID::MOVE, p);
+									float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
+									auto path = AstarSearchPath(scout->pos, map.FindHardPointsInMinerals(map.getExpansionIndex(map.enemy, map.main))[0], Observation()->GetGameInfo(), weights);
+									map.debugPath(path, Debug(), Observation());
+									delete[] weights;
+									Actions()->UnitCommand(scout, ABILITY_ID::MOVE, scout->pos);
+									for (auto & pi : path) {
+										Actions()->UnitCommand(scout, ABILITY_ID::MOVE, { (float) pi.x, (float)pi.y }, true);
+									}
 									Actions()->UnitCommand(scout, ABILITY_ID::BUILD_PYLON, p,true);
 									minerals -= 100;
 									busy(scout->tag);
@@ -912,11 +913,34 @@ public:
 				}
 			}
 		}
+		if (harvesting.getCurrentHarvesters() >= harvesting.getIdealHarvesters()) {
+			if (! buildingNexus) {
+				auto nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
+				if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })) {
+					minerals -= 400;
+					if (minerals > 0) {
+						const std::vector<int> & bydist = map.distanceSortedBasesPerPlayer[map.ourBaseStartLocIndex];
+						bool doit = false;
+						for (int i = 1, e = bydist.size(); i < e; i++) {
+							Point2D p = map.expansions[bydist[i]];
+							if (Query()->Placement(ABILITY_ID::BUILD_NEXUS, p)) {
+								sortByDistanceTo(probs, p);
+								buildingNexus = true;
+								Actions()->UnitCommand(probs.front(), ABILITY_ID::MOVE, p);
+								Actions()->UnitCommand(probs.front(), ABILITY_ID::BUILD_NEXUS, p, true);
+								busy(probs.front()->tag);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
 		std::unordered_set<Tag> harvesters;
 		
-		auto probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-		for (auto p : probs) {
-			if (p != bob && p != scout) {
+		
+		for (auto & p : probs) {
+			if ( (p != bob && p != scout) || probs.size() <= 2) {
 				bool busy = false;
 				if (isBusy(p->tag))
 					continue;
@@ -1020,10 +1044,11 @@ public:
 				map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::proxy));
 				busy(bob->tag);
 			}
-			if (bob->orders.empty() || none_of(bob->orders.begin(), bob->orders.end(), [](const auto & o) { return  o.ability_id == ABILITY_ID::HARVEST_GATHER || o.ability_id == ABILITY_ID::HARVEST_RETURN; })) {
-				Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(proxy), true);
-				busy(bob->tag);
-			}
+			// basic counting bob as harvester should be enough
+//			if (bob->orders.empty() || none_of(bob->orders.begin(), bob->orders.end(), [](const auto & o) { return  o.ability_id == ABILITY_ID::HARVEST_GATHER || o.ability_id == ABILITY_ID::HARVEST_RETURN; })) {
+//				Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(proxy), true);
+//				busy(bob->tag);
+//			}
 		};
 		
 
@@ -1279,22 +1304,7 @@ public:
 
 	
 
-	float getRange(const Unit *z) {
-		auto arms = Observation()->GetUnitTypeData().at(static_cast<uint32_t>(z->unit_type)).weapons;
-		if (arms.empty()) {
-			return 0;
-		}
-		float attRange = arms.front().range +z->radius;
-
-											 // slight exaggeration is ok
-											 //attRange *= 1.01f;
-
-		if (z->unit_type == UNIT_TYPEID::PROTOSS_PROBE) {
-			//attRange *= .6f;
-		}
-
-		return attRange;
-	}
+	
 
 	std::vector<int> TryImmediateAttack(const Units & zeals) {
 		std::vector<int> attacking;
@@ -1306,7 +1316,7 @@ public:
 				continue;
 			} 
 						
-			float attRange = getRange(z);
+			float attRange = getRange(z, Observation()->GetUnitTypeData());
 
 			auto enemies = FindEnemiesInRange(z->pos, attRange);
 
@@ -1502,15 +1512,17 @@ private:
 	}
 
 	void TryBuildUnits() {
-		if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50 && !isBusy(nexus->tag)) {
-			if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters()) {
-				Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
-				if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
-					Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus);
+		for (auto & nexus : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS))) {
+			if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50 && !isBusy(nexus->tag)) {
+				if (harvesting.getCurrentHarvesters() < harvesting.getIdealHarvesters()) {
+					Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
+					if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
+						Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus);
+					}
+					minerals -= 50;
+					supplyleft -= 1;
+					busy(nexus->tag);
 				}
-				minerals -= 50;
-				supplyleft -= 1;
-				busy(nexus->tag);
 			}
 		}
 		
@@ -1623,7 +1635,7 @@ private:
 			const Unit * builder;
 			// If a unit already is building a supply structure of this type, do nothing.
 			// Also get an scv to build the structure.
-			auto tobuild = ABILITY_ID::BUILD_FORGE;
+			auto tobuild = ABILITY_ID::BUILD_PHOTONCANNON;
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			if (any_of(probes.begin(), probes.end(), [&](const auto & p)
 			{
@@ -1902,7 +1914,13 @@ private:
 			return false;
 		}
 
-		int gws = CountUnitType(UNIT_TYPEID::PROTOSS_GATEWAY);
+		auto gates = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
+		int gws = 0;
+		for (auto g : gates) {
+			if (Distance2D(g->pos, proxy) <= 20.0f) {
+				gws++;
+			}
+		}
 
 		int sgs = CountUnitType(UNIT_TYPEID::PROTOSS_STARGATE);
 		int zeals = CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT);
@@ -1951,7 +1969,7 @@ private:
 		const Unit * builder;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if (tobuild == ABILITY_ID::BUILD_FORGE) {
+		if ( (tobuild == ABILITY_ID::BUILD_FORGE || minerals >= 400) && frame%3 ==0) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			if (any_of(probes.begin(), probes.end(), [&](const auto & p)
 			{

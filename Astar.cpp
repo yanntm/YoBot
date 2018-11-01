@@ -9,18 +9,48 @@ https://github.com/hjweide/a-star/
 #include <limits>
 #include <cmath>
 #include "AStar.h"
+#include "YoAgent.h"
+#include "UnitTypes.h"
 
+using namespace sc2util;
+using namespace std;
 
-std::vector<sc2::Point2DI> AstarSearchPath(sc2::Point2DI start, sc2::Point2DI end, const sc2::GameInfo & info)
-{
+float * computeWeightMap(const sc2::GameInfo & info, const sc2::UnitTypes & types, const YoAgent::UnitsMap & allEnemies) {
 	const int wsize = info.width * info.height;
 	float * weights = new float[wsize];
 	for (int x = 0; x < info.width; x++) {
 		for (int y = 0; y < info.width; y++) {
-			weights[x + y * info.width] = sc2util::Pathable(info, sc2::Point2DI(x, y)) ? 1.0f : std::numeric_limits<float>::max();
+			auto w = sc2util::Pathable(info, sc2::Point2DI(x, y)) ? 1.0f : std::numeric_limits<float>::max();
+			weights[x + y * info.width] = w;
 		}
 	}
+	
+	for (auto & ent : allEnemies) {
+		auto & u = ent.second;
+		// make enemy units unpathable
+		if (! IsBuilding(u->unit_type) && ! u->is_flying) {
+			weights[ (int)u->pos.x + (int)u->pos.y * info.width] *= 10;
+		}
+		// make enemy influenced zone less pathable
+		auto r = getRange(u, types);
+		if (r < 2.0f) {
+			r = 2.0f;
+		}
+		auto r2 = r * r;
+		for (int x = (int)-r; x <= (int)r; x++) {
+			for (int y = (int)-r; y <= (int)r; y++) {
+				if (x*x + y * y <= r2) {
+					weights[(int)u->pos.x + x + ((int)u->pos.y + y)* info.width] += 1;
+				}
+			}
+		}		
+	}
+	return weights;
+}
 
+std::vector<sc2::Point2DI> AstarSearchPath(sc2::Point2DI start, sc2::Point2DI end, const sc2::GameInfo & info, float * weights)
+{	
+	const int wsize = info.width * info.height;
 	//		bool astar(const float* weights, const int h, const int w,	const int start, const int goal, bool diag_ok,
 	//	       int* paths)
 	int * paths = new int[wsize];
@@ -37,14 +67,13 @@ std::vector<sc2::Point2DI> AstarSearchPath(sc2::Point2DI start, sc2::Point2DI en
 		std::reverse(path.begin(), path.end());
 	} 
 
-	delete[] paths;
-	delete[] weights;
+	delete[] paths;	
 
 	return path;
 }
 
-std::vector<sc2::Point2DI> AstarSearchPath(sc2::Point2D start, sc2::Point2D end, const sc2::GameInfo & info) {
-	return AstarSearchPath(sc2::Point2DI((int)start.x, (int)start.y), sc2::Point2DI((int)end.x, (int)end.y), info);
+std::vector<sc2::Point2DI> AstarSearchPath(sc2::Point2D start, sc2::Point2D end, const sc2::GameInfo & info, float * weights) {
+	return AstarSearchPath(sc2::Point2DI((int)start.x, (int)start.y), sc2::Point2DI((int)end.x, (int)end.y), info, weights);
 }
 
 
@@ -132,7 +161,12 @@ bool astar(
 		for (int i = 0; i < 8; ++i) {
 			if (nbrs[i] >= 0) {
 				// the sum of the cost so far and the cost of this move
-				float new_cost = costs[cur.idx] + weights[nbrs[i]];
+				auto wei = weights[nbrs[i]];
+				// diagonal moves cost more
+				if (i == 0 || i == 2 || i == 5 || i == 7) {
+					wei *= sqrt(2);
+				}
+				float new_cost = costs[cur.idx] + wei;
 				if (new_cost < costs[nbrs[i]]) {
 					// estimate the cost to the goal based on legal moves
 					if (diag_ok) {

@@ -179,5 +179,15 @@ namespace sc2util {
 		return false;
 	}
 
+	float getRange(const Unit *z, const sc2::UnitTypes & types) {
+		auto arms = types.at(static_cast<uint32_t>(z->unit_type)).weapons;
+		if (arms.empty()) {
+			return z->radius;
+		}
+		float attRange = arms.front().range + z->radius;
+		
+		return attRange;
+	}
+
 
 }

@@ -90,7 +90,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 		int ti = mainBases[baseIndex];
 		// next look for the closest bases to this main
 		std::vector<int> byDist = sortByDistanceTo(matrix, ti, sz);
-
+		distanceSortedBasesPerPlayer.push_back(byDist);
 		int maxCloseBaseIndex = 2;
 		float dClosest = matrix[ti*sz + byDist[1]];
 		for (int i = 2; i < sz; i++) {

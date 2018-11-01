@@ -50,8 +50,8 @@ class HarvesterStrategy
 	static std::vector<int> allocateTargets(const sc2::Units & probes, const sc2::Units & mins, std::function<int(const sc2::Unit *)>&toAlloc, std::unordered_map<sc2::Tag, int> current = {}, bool overSat=false);
 public:
 	
-	int getIdealHarvesters();
-	int getCurrentHarvesters();
+	int getIdealHarvesters() const;
+	int getCurrentHarvesters() const;
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs);
 	
@@ -63,7 +63,7 @@ public:
 	std::vector<int> roundtrips; // accumulated probe timings
 	std::unordered_map<sc2::Tag, int> lastReturnedFrame; // timing per probe
 	std::unordered_map<sc2::Tag, int> lastTripTime; // timing per probe
-	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
+	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const;
 #endif
 };
 
@@ -72,14 +72,14 @@ class MultiHarvesterStrategy {
 	std::vector<HarvesterStrategy> perBase;
 	long frame = 0;
 public:
-	int getIdealHarvesters() {
+	int getIdealHarvesters() const {
 		int sum = 0;
 		for (auto & h : perBase) {
 			sum += h.getIdealHarvesters();
 		}
 		return sum;
 	}
-	int getCurrentHarvesters() {
+	int getCurrentHarvesters() const {
 		int sum = 0;
 		for (auto & h : perBase) {
 			sum += h.getCurrentHarvesters();
@@ -88,12 +88,16 @@ public:
 	}
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs) {
-		perBase.push_back(HarvesterStrategy());
-		perBase.rbegin()->initialize(nexus, minerals, obs);
+		if (none_of(perBase.begin(), perBase.end(), [nexus](auto & hs) { return hs.nexus == nexus; })) {
+			perBase.emplace_back(HarvesterStrategy());
+			perBase.rbegin()->initialize(nexus, minerals, obs);
+		}
 	}
 
 	void assignTargets(const sc2::Units & workers);
 
 	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger);
+
+	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const;
 };
 
