@@ -194,6 +194,26 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 	}
 	updateRoster(probes);
 
+	for (auto & m : minerals) {
+		if (m->display_type == Unit::DisplayType::Snapshot) {
+			Units resources = obs->GetUnits(Unit::Alliance::Neutral,
+				[&](const Unit& unit) {
+				return sc2util::IsMineral(unit.unit_type) && unit.pos.x == m->pos.x && unit.pos.y == m->pos.y;
+			}
+			);
+			if (!resources.empty()) {
+				auto & mp = resources.front();
+				if (m->tag != mp->tag) {
+					magicSpots.insert({ mp->tag, magicSpots[m->tag] });
+					magicSpots.erase(m->tag);
+					magicNexusSpots.insert({ mp->tag, magicSpots[m->tag] });
+					magicNexusSpots.erase(m->tag);
+					m = mp;
+				}
+			}
+		}
+	}
+
 	if (minerals.empty()) {
 		allminerals.erase(
 			remove_if(allminerals.begin(), allminerals.end(), [](auto u) { return u->mineral_contents <= 5; }),
@@ -496,6 +516,22 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 			debug->DebugLineOut(p->pos, Point3D(out.x, out.y, out.z + 0.1f), Colors::Red);
 		}
 	}
+	for (auto & e : workerStates) {
+		auto p = obs->GetUnit(e.first);
+		std::string c;
+		switch (e.second.harvest) {
+		case ReturningMineral :
+			c = "R";
+			break;
+		case MovingToMineral :
+			c = "M";
+			break;
+		case GatheringMineral :
+			c = "H";
+			break;
+		}
+		debug->DebugTextOut(c, p->pos + Point3D(0, .2, .2), Colors::Green);
+	}
 	if (nexus != nullptr) {
 		auto pos = nexus->pos;
 		std::function<int(const Unit *)> func = [pos](const Unit *u) {
@@ -532,6 +568,15 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	}
 }
 #endif
+
+const Unit * MultiHarvesterStrategy::getNexusFor(sc2::Tag probe) const
+{
+	auto it = workerAssignedMinerals.find(probe);
+	if (it != workerAssignedMinerals.end()) {
+		return perBase[it->second].nexus;
+	}
+	return nullptr;
+}
 
 void MultiHarvesterStrategy::assignTargets(const Units & workers)
 {
@@ -614,6 +659,7 @@ void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::Obser
 	}
 }
 
+#ifdef DEBUG
 void MultiHarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const
 {
 	for (const auto & v : perBase) {
@@ -621,3 +667,4 @@ void MultiHarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::
 	}
 		
 }
+#endif
