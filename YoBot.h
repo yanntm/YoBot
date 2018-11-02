@@ -632,8 +632,13 @@ public:
 		}
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
 			auto list = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-			list.erase(std::remove(list.begin(), list.end(), bob), list.end());			
-			auto reaper = FindNearestEnemy(Observation()->GetStartLocation());
+			list.erase(std::remove(list.begin(), list.end(), bob), list.end());	
+			list.erase(std::remove_if(list.begin(), list.end(), [&](auto & p) { return Distance2D(p->pos, unit->pos) > 8.0f; }), list.end());
+
+			auto reaper = FindNearestEnemy(unit->pos);
+			if (reaper == nullptr) {
+				return;
+			}
 			sortByDistanceTo(list, reaper->pos);
 			if (list.size() > 3)
 				list.resize(3);
@@ -1059,16 +1064,27 @@ public:
 		}
 		
 		if (nexus != nullptr && frame % 3 == 0) {
-			auto min = FindNearestMineralPatch(nexus->pos);
 			auto probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+			Units nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
 			for (auto probe : probes) {
-				auto d = Distance2D(nexus->pos, probe->pos);
-				auto dm = Distance2D(nexus->pos, min->pos);
-				if ( probe != bob && probe != scout && dm <= 10.0f && d > 9.0f && !buildOrderBusy(probe) && ( probe->engaged_target_tag == 0 || Observation()->GetUnit(probe->engaged_target_tag) == nullptr ||  !IsMineral(Observation()->GetUnit(probe->engaged_target_tag)->unit_type))) {
-					Actions()->UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
-				}				
+				auto nexus = harvesting.getNexusFor(probe->tag);
+				if (nexus == nullptr && ! nexi.empty()) {
+					sortByDistanceTo(nexi, probe->pos);
+					nexus = nexi.front();
+				}
+
+				if (nexus != nullptr) {
+					auto min = FindNearestMineralPatch(nexus->pos);
+					auto d = Distance2D(nexus->pos, probe->pos);
+					auto dm = Distance2D(nexus->pos, min->pos);
+					if (probe != bob && probe != scout && dm <= 10.0f && d > 9.0f && !buildOrderBusy(probe) 
+						&& std::any_of(probe->orders.begin(), probe->orders.end(), 
+							[](auto & o) { return o.ability_id == ABILITY_ID::ATTACK_ATTACK; })) {
+						Actions()->UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
+					}
+				}
 			}
-			if (bob != nullptr && nexus != nullptr && probes.size() == 1 && minerals < 50 && estimated < 5 && ! isBusy(bob->tag)) {
+/*			if (bob != nullptr && nexus != nullptr && probes.size() == 1 && minerals < 50 && estimated < 5 && ! isBusy(bob->tag)) {
 				if (!IsCarryingMinerals(*bob)) {
 					Actions()->UnitCommand(bob, ABILITY_ID::HARVEST_GATHER, min);
 				}
@@ -1077,6 +1093,7 @@ public:
 				}
 				busy(bob->tag);
 			}
+			*/
 			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
 			if ( (Observation()->GetArmyCount() >= maxZeal || minerals >= 500 || needCannons) && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
 				
@@ -1086,6 +1103,7 @@ public:
 					if (!probes.empty() && g != nullptr) {
 						auto p = chooseClosest(g, probes);
 						harvesters.erase(p->tag);
+						auto min = FindNearestMineralPatch(p->pos);
 						Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
 						busy(p->tag);
@@ -1116,6 +1134,7 @@ public:
 						 })
 						, probes.end());
 					if (!probes.empty()) {
+						auto min = FindNearestMineralPatch(a->pos);
 						auto p = chooseClosest(min, probes);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min);
 						busy(p->tag);
@@ -1461,13 +1480,14 @@ public:
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_PROBE: {
-			if (nexus != nullptr) {
-				const Unit* mineral_target = FindNearestMineralPatch(nexus->pos);
+/*			auto n = harvesting.getNexusFor(unit->tag);
+			if (n  != nullptr) {
+				const Unit* mineral_target = FindNearestMineralPatch(n->pos);
 				if (!mineral_target) {
 					break;
 				}
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral_target);
-			}
+			}*/ // let normal harvester strat handle that
 			break;
 		}
 		default: {
