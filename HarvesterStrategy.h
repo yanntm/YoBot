@@ -86,6 +86,7 @@ public:
 		}
 		return sum;
 	}
+	const sc2::Unit * getNexusFor(sc2::Tag probe) const;
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs) {
 		if (none_of(perBase.begin(), perBase.end(), [nexus](auto & hs) { return hs.nexus == nexus; })) {
@@ -97,7 +98,8 @@ public:
 	void assignTargets(const sc2::Units & workers);
 
 	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger);
-
+#ifdef DEBUG
 	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const;
+#endif
 };
 
