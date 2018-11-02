@@ -41,7 +41,7 @@ float * computeWeightMap(const sc2::GameInfo & info, const sc2::UnitTypes & type
 			for (int y = (int)-r; y <= (int)r; y++) {
 				if (x*x + y * y <= r2) {
 					auto xp = (int)u->pos.x + x;
-					auto yp = (int)u->pos.y + y);
+					auto yp = (int)u->pos.y + y;
 					if (xp >= 0 && xp < info.width && yp >= 0 && yp < info.height) {
 						auto & oldw = weights[xp + (yp* info.width)];
 						if (oldw < std::numeric_limits<float>::max()) {
