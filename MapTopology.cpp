@@ -587,7 +587,7 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 // Adapted (patched) with respect to version of sc_search.cc of the sc2api
 std::vector<std::pair<Point3D, Units > > MapTopology::CalculateExpansionLocations(const ObservationInterface* observation, QueryInterface* query) {
 	
-	Units resources = observation->GetUnits(
+	Units resources = observation->GetUnits(Unit::Alliance::Neutral,
 		[](const Unit& unit) {
 		return IsVespene(unit.unit_type) || IsMineral(unit.unit_type);
 	}
