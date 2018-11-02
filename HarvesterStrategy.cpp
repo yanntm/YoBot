@@ -300,10 +300,10 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 					actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 				}
 				// keep clicking
-				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+				//actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 			}
 			else if (e.move == Approaching) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+				//actions->UnitCommand(p, ABILITY_ID::SMART, mp);
 			}
 		}
 		else if (e.harvest == ReturningMineral) {
@@ -319,7 +319,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 		else {
 			//GatheringMineral, //actively mining the crystal with ability
 			auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
-			if (p->orders.empty()) {
+			if (p->orders.empty() || std::none_of(p->orders.begin(), p->orders.end(), [](auto & o) { return o.ability_id == ABILITY_ID::HARVEST_GATHER; })) {
 				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
 			}
 			else if (p->orders[0].ability_id == sc2::ABILITY_ID::HARVEST_GATHER)
@@ -518,6 +518,8 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 	}
 	for (auto & e : workerStates) {
 		auto p = obs->GetUnit(e.first);
+		if (p == nullptr)
+			continue;
 		std::string c;
 		switch (e.second.harvest) {
 		case ReturningMineral :
