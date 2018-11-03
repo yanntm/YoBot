@@ -20,7 +20,7 @@ float * computeWeightMap(const sc2::GameInfo & info, const sc2::UnitTypes & type
 	float * weights = new float[wsize];
 	for (int x = 0; x < info.width; x++) {
 		for (int y = 0; y < info.height; y++) {
-			auto w = sc2util::Pathable(info, sc2::Point2DI(x, y)) ? 1.0f : std::numeric_limits<float>::max();
+			auto w = sc2util::Pathable(info, sc2::Point2DI(x, y)) ? 1.0f : std::numeric_limits<float>::infinity();
 			weights[x + y * info.width] = w;
 		}
 	}
@@ -154,15 +154,15 @@ bool astar(
 
 		int row = cur.idx / w;
 		int col = cur.idx % w;
-		// check bounds and find up to eight neighbors: top to bottom, left to right
+		// check bounds and find up to eight neighbors: rotate from top left to bottom
 		nbrs[0] = (diag_ok && row > 0 && col > 0) ? cur.idx - w - 1 : -1;
 		nbrs[1] = (row > 0) ? cur.idx - w : -1;
 		nbrs[2] = (diag_ok && row > 0 && col + 1 < w) ? cur.idx - w + 1 : -1;
-		nbrs[3] = (col > 0) ? cur.idx - 1 : -1;
-		nbrs[4] = (col + 1 < w) ? cur.idx + 1 : -1;
-		nbrs[5] = (diag_ok && row + 1 < h && col > 0) ? cur.idx + w - 1 : -1;
-		nbrs[6] = (row + 1 < h) ? cur.idx + w : -1;
-		nbrs[7] = (diag_ok && row + 1 < h && col + 1 < w) ? cur.idx + w + 1 : -1;
+		nbrs[3] = (col + 1 < w) ? cur.idx + 1 : -1;
+		nbrs[4] = (diag_ok && row + 1 < h && col + 1 < w) ? cur.idx + w + 1 : -1;
+		nbrs[5] = (row + 1 < h) ? cur.idx + w : -1;
+		nbrs[6] = (diag_ok && row + 1 < h && col > 0) ? cur.idx + w - 1 : -1;
+		nbrs[7] = (col > 0) ? cur.idx - 1 : -1;
 
 		float heuristic_cost;
 		for (int i = 0; i < 8; ++i) {
@@ -170,9 +170,13 @@ bool astar(
 				// the sum of the cost so far and the cost of this move
 				auto wei = weights[nbrs[i]];
 				// diagonal moves cost more
-				if (i == 0 || i == 2 || i == 5 || i == 7) {
+				if (i %2 == 0) {
 					wei *= sqrt(2);
+					if (weights[nbrs[(i + 1) % 8]] > 1000 && weights[nbrs[(i + 7) % 8]] > 1000) {
+						wei = 1000;
+					}
 				}
+
 				float new_cost = costs[cur.idx] + wei;
 				if (new_cost < costs[nbrs[i]]) {
 					// estimate the cost to the goal based on legal moves
