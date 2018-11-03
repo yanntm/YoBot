@@ -529,11 +529,8 @@ public:
 			}
 		}
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
-			if (unit->shield >= 20 && unit->shield < 25) {
-				auto nmy = FindNearestEnemy(unit->pos);
-				auto vec = unit->pos - nmy->pos;
-
-				Actions()->UnitCommand(unit, ABILITY_ID::MOVE, unit->pos + (vec / 2));
+			if (unit->shield <= 10 && unit->health <= 25) {
+				evade(unit, proxy);
 				//std::cout << "ouch run away" << std::endl;
 			}
 			else {
@@ -699,6 +696,7 @@ public:
 
 	virtual void OnYoStep() final {
 		needCannons = true;
+		
 		frame++;
 		updateBusy();
 #ifdef DEBUG
@@ -761,6 +759,9 @@ public:
 
 		}
 #endif
+		if (gas > 150) {
+			needImmo = true;
+		}
 		//sc2::SleepFor(20);
 		auto probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 		if (false && frame == 400 && scout == nullptr && probs.size() > 2) {
@@ -960,6 +961,14 @@ public:
 					}
 				}
 			}
+			else {
+				if (frame % 20 == 0) {
+					auto nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
+					if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })) {
+						buildingNexus = false;
+					}
+				}
+			}
 		}
 		std::unordered_set<Tag> harvesters;
 		
@@ -1037,7 +1046,7 @@ public:
 		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodWorkers() < 5 && staticd < 4* Observation()->GetArmyCount()) {
 			const GameInfo& game_info = Observation()->GetGameInfo();			
 			
-			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
+			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return IsArmyUnitType(u.unit_type); })) {
 				if (unit->orders.size() == 0 && ! isBusy(unit->tag)) {
 					if (Distance2D(unit->pos, target) < 15.0f) {
 						target = proxy;
@@ -1569,11 +1578,27 @@ private:
 			}
 		}
 		
+		auto ta = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL));
+		if (!ta.empty() && frame % 3 == 0) {
+			auto & f = *ta.begin();
+			if (f->build_progress == 1.0f && !isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
+				Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_CHARGE);
+				minerals -= 100;
+				gas -= 100;
+				busy(f->tag);
+			}
+			if (!isBusy(f->tag) && !f->orders.empty() && nexus != nullptr && nexus->energy >= 50 && !isChronoed(f)) {
+				Actions()->UnitCommand(nexus, (ABILITY_ID)3755, f);
+			}
+		}
+
 		auto forge = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_FORGE));
 		if (!forge.empty() && frame % 3 == 0) {
 			auto & f = *forge.begin();
-			if (!isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
+			if (f->build_progress == 1.0f && !isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
 				Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_PROTOSSGROUNDWEAPONS);
+				minerals -= 100;
+				gas -= 100;
 				Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_PROTOSSGROUNDARMOR);
 				busy(f->tag);
 			}
@@ -1582,11 +1607,10 @@ private:
 			}
 		}
 
-		if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) >= maxZeal) {
-			chronoBuild(UNIT_TYPEID::PROTOSS_STARGATE, ABILITY_ID::TRAIN_VOIDRAY, 4, 250, 150);
-		} else  {
-			chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);			
-		}
+		chronoBuild(UNIT_TYPEID::PROTOSS_STARGATE, ABILITY_ID::TRAIN_VOIDRAY, 4, 250, 150);
+		chronoBuild(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY, ABILITY_ID::TRAIN_IMMORTAL, 4, 250, 150);
+		chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);			
+		
 	}
 
 	int chronoBuild(UNIT_TYPEID builder, ABILITY_ID tobuild, int supplyreq, int minsreq, int gasreq) {
@@ -1978,8 +2002,12 @@ private:
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
 		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0) {
 			tobuild = ABILITY_ID::BUILD_FORGE;
-		//}else if (needCannons) {
-
+		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
+			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
+		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) == 0) {
+			tobuild = ABILITY_ID::BUILD_TWILIGHTCOUNCIL;
+		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) == 0) {
+			tobuild = ABILITY_ID::BUILD_ROBOTICSFACILITY;
 		} else {
 			if (gws >= 4 && (zeals < maxZeal && minerals < 500 && gas < 100)) {
 				return false;
@@ -2016,11 +2044,14 @@ private:
 		else if (tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE && minerals < 150) {
 			return false;
 		}
+		else if (tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL && (minerals < 150 || gas < 100) ) {
+			return false;
+		}
 
 		const Unit * builder;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if ( (tobuild == ABILITY_ID::BUILD_FORGE || minerals >= 400) && frame%3 ==0) {
+		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400) && frame%3 ==0) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			if (any_of(probes.begin(), probes.end(), [&](const auto & p)
 			{
