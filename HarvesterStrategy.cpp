@@ -612,14 +612,23 @@ void MultiHarvesterStrategy::assignTargets(const Units & workers)
 void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger)
 {
 	bool rosterChange = false;
+	int index = 0;
 	for (auto it = perBase.begin(); it != perBase.end(); ) {
 		if (it->nexus == nullptr) {
 			it = perBase.erase(it);
-			workerAssignedMinerals.clear();
+			for (auto & e : workerAssignedMinerals) {
+				if (e.second == index) {
+					e.second = -1;
+				}
+				else if (e.second > index) {
+					e.second -= 1;
+				}
+			}
 			rosterChange = true;
 		}
 		else {
 			++it;
+			++index;
 		}
 	}
 	
