@@ -80,7 +80,7 @@ public:
 			target = proxy;
 		}
 		else {
-			scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());			
+			//scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());			
 
 			target = map.getPosition(MapTopology::enemy, MapTopology::main);
 			
@@ -698,7 +698,7 @@ public:
 	bool buildingNexus;
 
 	virtual void OnYoStep() final {
-
+		needCannons = true;
 		frame++;
 		updateBusy();
 #ifdef DEBUG
@@ -763,7 +763,8 @@ public:
 #endif
 		//sc2::SleepFor(20);
 		auto probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
-		if (frame == 400 && scout != nullptr && probs.size() > 2) {
+		if (false && frame == 400 && scout == nullptr && probs.size() > 2) {
+			scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());
 			// return minerals
 			if (IsCarryingMinerals(*scout)) {
 				Actions()->UnitCommand(scout, ABILITY_ID::HARVEST_RETURN);
@@ -801,10 +802,27 @@ public:
 		bool evading = false;
 		if (bob != nullptr && !isBusy(bob->tag) && probs.size() > 2) {
 			if (! orderBusy(bob)) {
-				evading = evade(bob,proxy);
-				if (!evading && (! bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER) ) {
-					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
-					busy(bob->tag);
+				auto d = Distance2D(bob->pos, proxy);
+				if (d > 15.0f && d < 25.0f) {
+
+					float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
+					auto path = AstarSearchPath(bob->pos, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0], Observation()->GetGameInfo(), weights);
+#ifdef DEBUG
+					map.debugPath(path, Debug(), Observation());
+#endif
+					delete[] weights;
+					Actions()->UnitCommand(bob, ABILITY_ID::MOVE, bob->pos);
+					for (auto & pi : path) {
+						Actions()->UnitCommand(bob, ABILITY_ID::MOVE, { (float)pi.x, (float)pi.y }, true);
+					}
+
+				}
+				else {
+					evading = evade(bob, proxy);
+					if (!evading && (!bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
+						Actions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);
+						busy(bob->tag);
+					}
 				}
 			}
 		}
@@ -822,7 +840,9 @@ public:
 									
 									float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
 									auto path = AstarSearchPath(scout->pos, map.FindHardPointsInMinerals(map.getExpansionIndex(map.enemy, map.main))[0], Observation()->GetGameInfo(), weights);
+#ifdef DEBUG
 									map.debugPath(path, Debug(), Observation());
+#endif
 									delete[] weights;
 									Actions()->UnitCommand(scout, ABILITY_ID::MOVE, scout->pos);
 									for (auto & pi : path) {
@@ -987,9 +1007,10 @@ public:
 				if (i++ < 3)
 					continue;
 				if (p != bob) {
-					Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(p->pos))[0]);
+					Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(p->pos))[1]);
 					busy(p->tag);
 					harvesters.erase(p->tag);
+					minerals -= 100;
 					break;
 				}
 			}
@@ -1115,27 +1136,29 @@ public:
 				if (a->build_progress < 1.0f) {
 					continue;
 				}
-				if (gas < 400 && a->assigned_harvesters < 3 && nexus != nullptr && (harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() < 3 || minerals >=200)) {
-					probes.erase(
-						remove_if(probes.begin(), probes.end(), [this,a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag || !u->orders.empty() && (*u->orders.begin()).target_unit_tag != a->tag || isBusy(a->tag); })
-						, probes.end());
+				if (gas < 400 && a->assigned_harvesters < 3 && nexus != nullptr && (harvesting.getCurrentHarvesters() >= 18 || harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() < 3 || minerals >=200)) {
+					auto probesc = probes;
+					probesc.erase(
+						remove_if(probesc.begin(), probesc.end(), [this,a](const Unit * u) { return IsCarryingVespene(*u) || IsCarryingMinerals(*u) || u->engaged_target_tag == a->tag || !u->orders.empty() && (*u->orders.begin()).target_unit_tag == a->tag || isBusy(u->tag); })
+						, probesc.end());
 					
-					if (!probes.empty()) {
-						auto p = chooseClosest(a, probes);
+					if (!probesc.empty()) {
+						auto p = chooseClosest(a, probesc);
 						harvesters.erase(p->tag);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
 						busy(p->tag);
 					}
 				}
-				else if (a->assigned_harvesters > 3 || harvesting.getIdealHarvesters() - harvesting.getCurrentHarvesters() > 2 || gas > 400) {
-					probes.erase(
-						remove_if(probes.begin(), probes.end(), [a](const Unit * u) { return u->engaged_target_tag != a->tag ||
-							!u->orders.empty() && (*u->orders.begin()).target_unit_tag != a->tag;
+				else if (a->assigned_harvesters > 3 || ( a->assigned_harvesters > 0 &&  gas > 400)) {
+					auto probesc = probes;
+					probesc.erase(
+						remove_if(probesc.begin(), probesc.end(), [a](const Unit * u) { 
+						return !u->orders.empty() && (*u->orders.begin()).target_unit_tag != a->tag;
 						 })
-						, probes.end());
-					if (!probes.empty()) {
+						, probesc.end());
+					if (!probesc.empty()) {
 						auto min = FindNearestMineralPatch(a->pos);
-						auto p = chooseClosest(min, probes);
+						auto p = chooseClosest(min, probesc);
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min);
 						busy(p->tag);
 					}
@@ -1480,14 +1503,14 @@ public:
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_PROBE: {
-/*			auto n = harvesting.getNexusFor(unit->tag);
+			auto n = harvesting.getNexusFor(unit->tag);
 			if (n  != nullptr) {
 				const Unit* mineral_target = FindNearestMineralPatch(n->pos);
 				if (!mineral_target) {
 					break;
 				}
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, mineral_target);
-			}*/ // let normal harvester strat handle that
+			}
 			break;
 		}
 		default: {
@@ -1670,15 +1693,23 @@ private:
 			sortByDistanceTo(probes, nexus->pos);
 			builder = *probes.begin();
 			harvesters.erase(builder->tag);
-			auto & r1 = map.resourcesPer[map.getExpansionIndex(MapTopology::ally, MapTopology::main)];
-			for (auto &r : r1) {
-				if (IsVespene(r->unit_type) && nexus != nullptr) {
-					auto p = (r->pos - nexus->pos) / 2 + nexus->pos;
-					if (Query()->Placement(tobuild, p)) {						
-						Actions()->UnitCommand(builder, tobuild, p);
-						return true;
-					}
-				}
+			
+			auto & points = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(nexus->pos));
+			auto p = points[0];
+			if (Query()->Placement(tobuild, p)) {
+				Actions()->UnitCommand(builder, tobuild, p);
+				return true;
+			} 
+			p = points[points.size()-1];
+			if (Query()->Placement(tobuild, p)) {
+				Actions()->UnitCommand(builder, tobuild, p);
+				return true;
+			}
+			p = points[points.size() - 2];
+			if (Query()->Placement(tobuild, p)) {
+				Actions()->UnitCommand(builder, ABILITY_ID::BUILD_PYLON, p);
+				minerals += 50;
+				return true;
 			}
 			minerals += 150;
 		}
@@ -1700,7 +1731,7 @@ private:
 			minerals -= 100;
 			Actions()->UnitCommand(bob,
 				ABILITY_ID::BUILD_PYLON,
-				proxy);
+				map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0]);
 			busy(bob->tag);
 			return true;
 		}
