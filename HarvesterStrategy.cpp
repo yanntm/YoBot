@@ -141,6 +141,8 @@ int HarvesterStrategy::getIdealHarvesters() const
 {
 	if (nexus == nullptr || ! nexus->is_alive)
 		return 0;
+	if (nexus->build_progress < 1.0f || (float)nexus->shield / nexus->shield_max < 0.9)
+		return 2;
 	auto pos = nexus->pos;
 	std::function<int(const Unit *)> func = [pos](const Unit *u) {
 		float d = Distance2D(u->pos, pos);
