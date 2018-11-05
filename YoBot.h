@@ -981,6 +981,9 @@ public:
 				if (IsCarryingVespene(*p)) {
 					// or probes that return gas become free on frame they return it
 					//YoBot::busy(p->tag);
+					if (p->orders.empty()) {
+						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_RETURN);
+					}
 					continue;
 				}
 				if (p->engaged_target_tag != 0) {
