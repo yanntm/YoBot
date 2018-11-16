@@ -296,13 +296,12 @@ public:
 		}
 		// up to two probes and a lot of shields : just do our thing
 		if (nmies.size() <= 2 && all_of(nmies.begin(), nmies.end(), [](auto & u) { return IsWorkerType(u->unit_type); }) 
-			&& unit->shield >= 9) {
-			auto min = map.FindNearestMineral(Point3D(goal.x, goal.y, 0));
+			&& unit->shield >= 9 && Distance2D(unit->pos,goal) > 5.0f) {
+			auto min = FindNearestUnit(goal, Observation()->GetUnits(Unit::Alliance::Neutral, [](const Unit & u) { return IsMineral(u.unit_type); }));
 			// mineral walk
-			if (min->mineral_contents > 0) {
+			if (min && min->mineral_contents > 0) {
 				Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, min);
-			}
-			else {
+			} else {
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, goal);
 			}
 			busy(unit->tag);
@@ -1700,7 +1699,7 @@ private:
 			return false;
 		}
 		auto cann = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PHOTONCANNON));
-		if (cann.size() < 2 ) {
+		if (false && cann.size() < 2 ) {
 			minerals -= 150;
 			const Unit * builder;
 			// If a unit already is building a supply structure of this type, do nothing.
