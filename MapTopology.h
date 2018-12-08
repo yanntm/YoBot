@@ -26,7 +26,7 @@ class MapTopology
 	static std::vector<std::pair<sc2::Point3D, sc2::Units > > CalculateExpansionLocations(const sc2::ObservationInterface* observation, sc2::QueryInterface* query);
 	// compute hard points in mineral lines
 	std::vector<sc2::Point2D> ComputeHardPointsInMinerals(int expansionIndex, const sc2::ObservationInterface * obs, sc2::QueryInterface * query, sc2::DebugInterface * debug);
-	std::vector<bool> reserved;
+	std::vector<int> reserved;
 	int width;
 	int height;
 public:
@@ -56,7 +56,7 @@ public:
 	// call this at game start to build up the info
 	void init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug=nullptr);
 	// call this to see what the topology thinks in debug mode
-	void debugMap(sc2::DebugInterface * debug);
+	void debugMap(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
 	void debugPath(const std::vector<sc2::Point2DI> path, sc2::DebugInterface * debug,const sc2::ObservationInterface *obs);
 	// query build grid at given point
 	bool Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const;
@@ -65,6 +65,8 @@ public:
 	void reserve(const sc2::Point2D & point);
 	// reserve mineral/gas tiles for an expansion index
 	void reserve(int expIndex);
+	void reserveVector(const sc2::Point2D & start, const sc2::Point2D & vec);
+	void reserveCliffSensitive(int expIndex, const sc2::ObservationInterface* obs);
 };
 
 namespace sc2util {

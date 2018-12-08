@@ -14,7 +14,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	const GameInfo& game_info = initial->GetGameInfo();
 	this->width = game_info.width;
 	this->height = game_info.height;
-	this->reserved = vector<bool>(height*width, false);
+	this->reserved = vector<int>(height*width, 0);
 
 	// compute a good place to put a nexus on the map : minerals and gas
 	{
@@ -172,7 +172,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	}
 
 #ifdef DEBUG
-	debugMap(debug);
+	debugMap(debug,initial);
 	if (debug != nullptr) debug->SendDebug();
 #endif // DEBUG
 
@@ -277,7 +277,7 @@ void MapTopology::debugPath(const std::vector<sc2::Point2DI> path, DebugInterfac
 	}
 }
 
-void MapTopology::debugMap(DebugInterface * debug) {
+void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * obs) {
 	if (debug == nullptr) {
 		return;
 	}
@@ -297,19 +297,21 @@ void MapTopology::debugMap(DebugInterface * debug) {
 		debug->DebugTextOut(text, sc2::Point3D(e.x, e.y, e.z + 2), Colors::Green);
 		
 	}
-	/* very costly to get z pos, disabled
+	
 	int res = 0;
 	for (int x = 0; x < width; x++) {
 		for (int y = 0; y < height; y++) {
 			if (reserved[y*width + x]) {	
-				auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
+				// very costly to get z pos, disabled
+				// auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
+				auto z = obs->TerrainHeight(Point2D(x, y));
 				debug->DebugBoxOut(Point3D(x, y, z), Point3D(x+1, y+1, z+.3f), Colors::Red);
 				res++;
 			}
 		}
 	}
 	debug->DebugTextOut("Reserved :" + to_string(res));
-	*/
+	
 
 	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
 		debug->DebugTextOut("main" + std::to_string(startloc), expansions[mainBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
@@ -713,20 +715,47 @@ void MapTopology::reserve(const sc2::Point2D & point)
 	reserved[p.y*width + p.x] = true;
 }
 
+void MapTopology::reserveVector(const Point2D & start, const Point2D & vec) {
+	auto vnorm = vec;
+	auto len = Distance2D(vnorm, { 0,0 });
+	vnorm /= len;
+	for (float f = 2; f < len; f += .25) {
+		auto torem = start + vnorm * f;
+		reserve(torem);
+		reserve(torem + Point2D(1, 0));
+		reserve(torem + Point2D(0, 1));
+		reserve(torem + Point2D(-1, 0));
+		reserve(torem + Point2D(0, -1));
+	}
+}
+
 void MapTopology::reserve(int expIndex)
 {
 	for (auto & r : resourcesPer[expIndex]) {
 		auto cc = expansions[expIndex];
-		auto vnorm = (r->pos - cc);
-		vnorm /= Distance2D(vnorm, {0,0});
-		for (float f = 2, max = Distance2D(cc, r->pos); f < max; f += .25) {
-			auto torem = cc + vnorm * f;
-			reserve(torem);
-			reserve(torem + Point2D(1,0));
-			reserve(torem + Point2D(0,1));
-			reserve(torem + Point2D(-1, 0));
-			reserve(torem + Point2D(0, -1));
-		}		
+		reserveVector(cc, (r->pos - cc));
+	}
+}
+
+void MapTopology::reserveCliffSensitive(int expIndex, const ObservationInterface * obs)
+{	
+	auto info = obs->GetGameInfo();
+	// scan tiles of the expansion (within 15.0), discard any that are within 5.0 of a cliff
+	auto center = expansions[expIndex];
+	int hx = center.x;
+	int hy = center.y;
+	auto h = obs->TerrainHeight(center);
+	for (int i = -15; i <= 15; i++) {
+		for (int j = -15; j <= 15; j++) {
+			auto p = Point2D(hx + i, hy + j);
+			if (obs->TerrainHeight(p) > h &&  Pathable(info, p)) {
+				auto vec = center - p;
+				auto vl = Distance2D(vec, Point2D(0,0));
+				vec /= vl;
+				vec *= 5;
+				reserveVector(p, vec);
+			}
+		}
 	}
 }
 
