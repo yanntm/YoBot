@@ -127,6 +127,7 @@ public:
 
 		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
 		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::nat));
+		map.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation());
 	}
 
 	virtual void OnUnitCreated(const Unit* unit) final {
@@ -701,7 +702,7 @@ public:
 #ifdef DEBUG
 		{
 			
-			map.debugMap(Debug());
+			map.debugMap(Debug(),Observation());
 
 			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, 0, 2.0f), Colors::Yellow);
 			Debug()->DebugTextOut("CURtarget", target + Point3D(0, 0, 2.0f), Colors::Yellow);
