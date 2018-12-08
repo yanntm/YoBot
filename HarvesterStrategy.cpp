@@ -314,8 +314,9 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 				e.move = Accelerating;
 			}
 			else {
-				// keep clicking !
-				actions->UnitCommand(p, ABILITY_ID::HARVEST_RETURN);
+				if (p->orders.empty() || std::none_of(p->orders.begin(), p->orders.end(), [](auto & o) { return o.ability_id == ABILITY_ID::HARVEST_RETURN; })) {
+					actions->UnitCommand(p, ABILITY_ID::HARVEST_RETURN);
+				}
 			}
 		}
 		else {
