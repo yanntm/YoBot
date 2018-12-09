@@ -2,6 +2,7 @@
 
 #include "sc2api/sc2_interfaces.h"
 #include "sc2api/sc2_client.h"
+#include "YoAction.h"
 #include <unordered_map>
 
 class HarvesterStrategy
@@ -55,7 +56,7 @@ public:
 
 	void initialize(const sc2::Unit * nexus, const sc2::Units & minerals, const sc2::ObservationInterface * obs);
 	
-	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger = false);
+	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::YoAction * actions, bool inDanger = false);
 
 #ifdef DEBUG
 	long frame = 0;
@@ -97,7 +98,7 @@ public:
 
 	void assignTargets(const sc2::Units & workers);
 
-	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger);
+	void OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::YoAction * actions, bool inDanger);
 #ifdef DEBUG
 	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const;
 #endif
