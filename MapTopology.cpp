@@ -298,19 +298,22 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 		
 	}
 	
-	int res = 0;
-	for (int x = 0; x < width; x++) {
-		for (int y = 0; y < height; y++) {
-			if (reserved[y*width + x]) {	
-				// very costly to get z pos, disabled
-				// auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
-				auto z = obs->TerrainHeight(Point2D(x, y));
-				debug->DebugBoxOut(Point3D(x, y, z), Point3D(x+1, y+1, z+.3f), Colors::Red);
-				res++;
+	// kinda costly, disabled by default
+	if (false) {
+		int res = 0;
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				if (reserved[y*width + x]) {
+					
+					// auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
+					auto z = obs->TerrainHeight(Point2D(x, y));
+					debug->DebugBoxOut(Point3D(x, y, z), Point3D(x + 1, y + 1, z + .3f), Colors::Red);
+					res++;
+				}
 			}
 		}
+		debug->DebugTextOut("Reserved :" + to_string(res));
 	}
-	debug->DebugTextOut("Reserved :" + to_string(res));
 	
 
 	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
@@ -707,6 +710,19 @@ bool  MapTopology::PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & 
 	unsigned char encodedPlacement = info.placement_grid.data[pointI.x + ((height - 1) - pointI.y) * width];
 	bool decodedPlacement = encodedPlacement == 255 ? true : false;
 	return decodedPlacement;
+}
+
+bool MapTopology::PlacementB(const sc2::GameInfo & info, const sc2::Point2D & point, int footprint) const
+{
+	auto inzone = sc2::Point2DI((int)point.x, (int)point.y);
+	for (int x = 0; x < footprint; x++) {
+		for (int y = 0; y < footprint; y++) {
+			if (! PlacementI(info, Point2DI(inzone.x + x, inzone.y + y))) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 void MapTopology::reserve(const sc2::Point2D & point)
