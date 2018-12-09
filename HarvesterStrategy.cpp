@@ -182,7 +182,7 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 	allminerals = obs->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return sc2util::IsMineral(u.unit_type); });
 }
 
-void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::ObservationInterface * obs, ActionInterface * actions, bool inDanger)
+void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::ObservationInterface * obs, YoAction * actions, bool inDanger)
 {
 #ifdef DEBUG
 	frame++;	
@@ -276,21 +276,24 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 
 	for (auto p : probes) {
 		auto & e = workerStates[p->tag];
+		if (actions->isBusy(p->tag)) {
+			continue;
+		}
 		if (e.harvest == MovingToMineral) {
 			auto min = minerals[workerAssignedMinerals[p->tag]];
 			auto mp = magicSpots[min->tag];
 			
 			if (e.move == Entering) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
-				e.move = Accelerating;
+				actions->UnitCommand(p, ABILITY_ID::MOVE, mp);
+				e.move = Accelerated;
 			}
 			else if (e.move == Accelerating) {				
-				actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+				//actions->UnitCommand(p, ABILITY_ID::MOVE, mp);
 				e.move = Accelerated;
 			}
 			else if (e.move == Accelerated) {
 				// keep clicking
-				actions->UnitCommand(p, ABILITY_ID::SMART, min);
+				actions->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min);
 				e.move = Coasting;
 			}
 			else if (e.move == Coasting) {
@@ -612,7 +615,7 @@ void MultiHarvesterStrategy::assignTargets(const Units & workers)
 	}
 }
 
-void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::ActionInterface * actions, bool inDanger)
+void MultiHarvesterStrategy::OnStep(const sc2::Units & workers, const sc2::ObservationInterface * obs, sc2::YoAction * actions, bool inDanger)
 {
 	bool rosterChange = false;
 	int index = 0;
