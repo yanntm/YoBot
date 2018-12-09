@@ -10,6 +10,8 @@
 #include <deque>
 #include <unordered_map>
 
+#include "YoAction.h"
+
 #define DllExport   __declspec( dllexport )  
 
 
@@ -31,12 +33,21 @@ struct Order {
 // A Yo Agent, is an agent that already has some nice stuff it knows about world and game state
 // that is not generally available in API
 class YoAgent : public sc2::Agent{
+	sc2::YoAction * actions;
 public : 
-	virtual ~YoAgent() = default;
+	virtual ~YoAgent() { delete actions; }
 
 	void initialize() {
+		actions = new sc2::YoAction(sc2::Agent::Actions());
 		map.init(Observation(), Query(), Debug());
 	}
+	sc2::ActionInterface * Actions() {
+		return actions;
+	}
+	sc2::YoAction * YoActions() {
+		return actions;
+	}
+
 	// the onStep function from Agent, sets up additional knowledge gained, then call OnYoStep, then call DispatchOrders
 	virtual void OnStep() final;
 	// the step function for concrete YoAgents

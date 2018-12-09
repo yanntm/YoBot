@@ -10,6 +10,7 @@ void YoAgent::OnStep()
 	OnYoStep();
 	// handle order queue
 	dispatchOrders();
+	actions->updateBusy();
 }
 
 void YoAgent::OnUnitEnterVision(const Unit * u)
