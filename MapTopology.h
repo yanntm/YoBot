@@ -61,6 +61,7 @@ public:
 	// query build grid at given point
 	bool Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const;
 	bool PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const;
+	bool PlacementB(const sc2::GameInfo & info, const sc2::Point2D & point, int footprint) const;
 	// reserve some tile
 	void reserve(const sc2::Point2D & point);
 	// reserve mineral/gas tiles for an expansion index
