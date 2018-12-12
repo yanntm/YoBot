@@ -158,13 +158,16 @@ public:
 			std::vector < Point2D > pos = { {-2,2},{0,2}, {2,2},
 														{-2,0},{0,0}, {2,0},  
 														{-2,-2},{0,-2}, {2,-2} };
+			for (auto & p : pos) {
+				p += unit->pos;
+			}
+			sortByDistanceTo(pos, proxy);
 			auto center = defensePoint(map.FindNearestBase(unit->pos));
 			if (Pathable(Observation()->GetGameInfo(),center)) {
 				for (auto & p : pos) {
-					Point2D ptry = p + unit->pos;
-					if (Pathable(Observation()->GetGameInfo(), ptry)) {
-						if (Query()->PathingDistance(ptry, center) != 0) {
-							Actions()->UnitCommand(unit, ABILITY_ID::RALLY_BUILDING, ptry,true);
+					if (Pathable(Observation()->GetGameInfo(), p)) {
+						if (Query()->PathingDistance(p, center) != 0) {
+							Actions()->UnitCommand(unit, ABILITY_ID::RALLY_BUILDING, p,true);
 							break;
 						}
 					}
@@ -302,6 +305,7 @@ public:
 		// up to two probes and a lot of shields : just do our thing
 		if (nmies.size() <= 2 && all_of(nmies.begin(), nmies.end(), [](auto & u) { return IsWorkerType(u->unit_type); }) 
 			&& unit->shield >= 9 && Distance2D(unit->pos,goal) > 12.0f) {
+			return false;
 			auto min = FindNearestUnit(goal, Observation()->GetUnits(Unit::Alliance::Neutral, [](const Unit & u) { return IsMineral(u.unit_type); }));
 			// mineral walk
 			if (min && min->mineral_contents > 0) {
@@ -820,8 +824,7 @@ public:
 
 				}
 				else {
-					//evading = evade(bob, proxy);
-					evading = false;
+					evading = evade(bob, proxy);					
 					if (!evading && (!bob->orders.empty() && bob->orders.begin()->ability_id == ABILITY_ID::HARVEST_GATHER)) {
 						YoActions()->UnitCommand(bob, ABILITY_ID::MOVE, proxy);						
 					}
@@ -942,7 +945,7 @@ public:
 				auto nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
 				if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })) {
 					minerals -= 400;
-					if (minerals > 0) {
+					if (minerals > 0 && !probs.empty()) {
 						const std::vector<int> & bydist = map.distanceSortedBasesPerPlayer[map.ourBaseStartLocIndex];
 						bool doit = false;
 						for (int i = 1, e = bydist.size(); i < e; i++) {
@@ -1101,11 +1104,11 @@ public:
 				}
 
 				if (nexus != nullptr) {
-					auto min = FindNearestMineralPatch(nexus->pos);
 					auto d = Distance2D(nexus->pos, probe->pos);
-					auto dm = Distance2D(nexus->pos, min->pos);
-					if (probe != bob && probe != scout && dm <= 10.0f && d > 9.0f) {
-						if (!buildOrderBusy(probe)
+					if (probe != bob && probe != scout && d > 9.0f) {
+						auto min = FindNearestMineralPatch(nexus->pos);
+						auto dm = Distance2D(nexus->pos, min->pos);
+						if (dm <= 10.0f && !buildOrderBusy(probe)
 							&& std::any_of(probe->orders.begin(), probe->orders.end(),
 								[](auto & o) { return o.ability_id == ABILITY_ID::ATTACK; })) {
 							Actions()->UnitCommand(probe, ABILITY_ID::HARVEST_GATHER, min);
@@ -1447,6 +1450,7 @@ public:
 			else {				
 				auto v = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy));
 				sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
+				std::reverse(v.begin(), v.end());
 				for (auto p : v) {
 					if (Pathable(Observation()->GetGameInfo(), p)) {
 						Actions()->UnitCommand(unit, ABILITY_ID::PATROL, p);
@@ -1743,7 +1747,7 @@ private:
 			
 			auto & points = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(nexus->pos));
 			auto p = points[0];
-			if (Query()->Placement(tobuild, p)) {
+			if (Query()->Placement(tobuild, p) && map.PlacementB(Observation()->GetGameInfo(),p,2)) {
 				Actions()->UnitCommand(builder, tobuild, p);
 				return true;
 			} 
@@ -1776,10 +1780,16 @@ private:
 
 		if ((pylons.size() == 0 || (pylons.size() == 1 && Distance2D(pylons.front()->pos, proxy) > 5) ) ){
 			minerals -= 100;
-			Actions()->UnitCommand(bob,
-				ABILITY_ID::BUILD_PYLON,
-				map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0]);
-			return true;
+			auto v = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy));		
+			sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
+			for (auto & pos : v) {
+				if (map.PlacementB(observation->GetGameInfo(), pos, 2)) {
+					Actions()->UnitCommand(bob,
+						ABILITY_ID::BUILD_PYLON,
+						pos);
+					return true;
+				}
+			}
 		}
 
 		bool needSupport = false;
@@ -2024,7 +2034,7 @@ private:
 		int sgs = CountUnitType(UNIT_TYPEID::PROTOSS_STARGATE);
 		int zeals = CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT);
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
-		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0) {
+		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0 && gates.size() >= 3) {
 			tobuild = ABILITY_ID::BUILD_FORGE;
 		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
 			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
@@ -2048,7 +2058,7 @@ private:
 				else if (gws < 7 && Observation()->GetFoodCap() >= 80) {
 					tobuild = ABILITY_ID::BUILD_GATEWAY;
 				}
-				else if (CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0)
+				else if (CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0 && gws >= 3)
 				{
 					tobuild = ABILITY_ID::BUILD_FORGE;
 				}
