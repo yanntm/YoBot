@@ -17,16 +17,30 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="TechTree|Win32">
+      <Configuration>TechTree</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="TechTree|x64">
+      <Configuration>TechTree</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{ACB84C42-74FB-418C-BC59-6EED4AEB2AC2}</ProjectGuid>
     <RootNamespace>YoBot</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <ProjectName>YoBot</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
@@ -40,6 +54,12 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
@@ -60,10 +80,16 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -72,14 +98,25 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.exe</TargetExt>
-    <IncludePath>L:\workspaces\VS2018\s2client-api\project\include;$(SolutionDir)..\s2client-api\project\include;$(IncludePath)</IncludePath>
-    <LibraryPath>L:\workspaces\VS2018\s2client-api\project\lib;$(SolutionDir)..\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Yann\source\repos\s2client-api\project\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\Yann\source\repos\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>L:\workspaces\VS2018\s2client-api\project\include;$(SolutionDir)..\s2client-api\project\include;$(IncludePath)</IncludePath>
-    <LibraryPath>L:\workspaces\VS2018\s2client-api\project\lib;$(SolutionDir)..\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Yann\source\repos\s2client-api\project\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\Yann\source\repos\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|x64'">
+    <IncludePath>C:\Users\Yann\source\repos\s2client-api\project\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\Yann\source\repos\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
@@ -93,6 +130,20 @@
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\s2client-api\build\generated;..\s2client-api\contrib\SDL-mirror\include;..\s2client-api\contrib\civetweb\include;..\s2client-api\src\..\include;..\s2client-api\contrib\protobuf\src;..\s2client-api\contrib\civetweb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>DEBUG;_SCL_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>L:\workspaces\VS2018\s2client-api\build\bin;..\s2client-api\build\bin\</AdditionalLibraryDirectories>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;sc2apid.lib;sc2libd.lib;sc2utilsd.lib;sc2rendererd.lib;sc2protocold.lib;libprotobufd.lib;civetweb.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\s2client-api\build\generated;..\s2client-api\contrib\SDL-mirror\include;..\s2client-api\contrib\civetweb\include;..\s2client-api\src\..\include;..\s2client-api\contrib\protobuf\src;..\s2client-api\contrib\civetweb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>DEBUG;TECHTREE;_SCL_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -137,7 +188,9 @@
     <ClCompile Include="MapTopology.cpp" />
     <ClCompile Include="Snippets.cpp" />
     <ClCompile Include="Astar.cpp" />
+    <ClCompile Include="TechBot.cpp" />
     <ClCompile Include="UnitTypes.cpp" />
+    <ClCompile Include="YoAction.cpp" />
     <ClCompile Include="YoAgent.cpp" />
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
@@ -146,8 +199,11 @@
     <ClInclude Include="HarvesterStrategy.h" />
     <ClInclude Include="AStar.h" />
     <ClInclude Include="MapTopology.h" />
+    <ClInclude Include="BuildOrder.h" />
+    <ClInclude Include="TechBot.h" />
     <ClInclude Include="UnitTypes.h" />
     <ClInclude Include="LadderInterface.h" />
+    <ClInclude Include="YoAction.h" />
     <ClInclude Include="YoAgent.h" />
     <ClInclude Include="YoBot.h" />
   </ItemGroup>
