@@ -299,7 +299,7 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 	}
 	
 	// kinda costly, disabled by default
-	if (false) {
+	if (true) {
 		int res = 0;
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
@@ -307,7 +307,14 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 					
 					// auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
 					auto z = obs->TerrainHeight(Point2D(x, y));
-					debug->DebugBoxOut(Point3D(x, y, z), Point3D(x + 1, y + 1, z + .3f), Colors::Red);
+					auto len = to_string(z);
+					len.erase(len.length() - 4);
+					auto col = Colors::Red;
+					if (Pathable(obs->GetGameInfo(), Point2D(x, y))) {
+						col = Colors::Green;
+					}
+					//debug->DebugTextOut(len, Point3D(x + .5, y + .5, z + .3f), col);
+					debug->DebugBoxOut(Point3D(x, y, z), Point3D(x + 1, y + 1, z + .3f), col);
 					res++;
 				}
 			}
