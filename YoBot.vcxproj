@@ -189,6 +189,7 @@
     <ClCompile Include="Snippets.cpp" />
     <ClCompile Include="Astar.cpp" />
     <ClCompile Include="TechBot.cpp" />
+    <ClCompile Include="TechTree.cpp" />
     <ClCompile Include="UnitTypes.cpp" />
     <ClCompile Include="YoAction.cpp" />
     <ClCompile Include="YoAgent.cpp" />
