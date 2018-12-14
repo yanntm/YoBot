@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
 	coordinator.SetStepSize(1);
 	coordinator.SetRealtime(false);
 	coordinator.SetMultithreaded(true);
+
 	coordinator.SetParticipants({
 		CreateParticipant(sc2::Race::Protoss, &bot)
 		,CreateComputer(sc2::Race::Protoss, sc2::Difficulty::CheatInsane)
@@ -49,11 +50,12 @@ int main(int argc, char* argv[])
 	coordinator.LaunchStarcraft();
 	
 	auto map = "D:\\games\\StarCraft II\\Maps\\CeruleanFallLE.SC2Map";
+//	auto map = "D:\\games\\StarCraft II\\Maps\\DarknessSanctuaryLE.SC2Map";
 	
 	if (coordinator.StartGame(map)) {
 		// Step forward the game simulation.
-		coordinator.Update();
-		coordinator.Update();
+		for (int i = 0 ; i < 10 ; i++)
+			coordinator.Update();
 		coordinator.LeaveGame();
 	}
 	else {
