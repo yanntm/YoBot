@@ -1,5 +1,5 @@
 #include "BOBuilder.h"
-
+#include <unordered_set>
 
 namespace suboo {
 
@@ -22,23 +22,30 @@ namespace suboo {
 		// enforce prerequisites
 		GameState state = tech.getInitial();
 		BuildOrder bopre;
+		std::unordered_set<UnitId> seen;
 		for (auto & bi : bo.getItems()) {
 			if (bi.getAction() == BUILD) {
 				auto target = bi.getTarget();
 				auto & unit = tech.getUnitById(target);
+				
 				// unit prereq
 				for (UnitId prereq = unit.prereq; (int)prereq != 0 ; prereq = tech.getUnitById(prereq).prereq ) {
 					if (!state.hasUnit(prereq)) {
 						bopre.addItemFront(prereq);
 						state.addUnit(prereq);
+						seen.insert(prereq);
 					}
 				}
-				// builder and prereq
+				// builder and prereq				
 				for (UnitId prereq = unit.builder; (int)prereq != 0; prereq = tech.getUnitById(prereq).builder) {
+					if (seen.find(prereq) != seen.end()) {
+						break;
+					}
 					if (!state.hasUnit(prereq)) {
 						bopre.addItemFront(prereq);
 						state.addUnit(prereq);
-					}
+						seen.insert(prereq);
+					}					
 				}
 				
 
