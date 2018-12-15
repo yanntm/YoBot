@@ -151,24 +151,27 @@ public:
 			
 			buildingNexus = false;
 		}
-		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_GATEWAY) {			
-			auto direction = proxy - unit->pos;
-			direction /= Distance2D(Point2D(0, 0), direction);
-			// point towards open spot
-			std::vector < Point2D > pos = { {-2,2},{0,2}, {2,2},
-														{-2,0},{0,0}, {2,0},  
-														{-2,-2},{0,-2}, {2,-2} };
-			for (auto & p : pos) {
-				p += unit->pos;
-			}
-			sortByDistanceTo(pos, proxy);
-			auto center = defensePoint(map.FindNearestBase(unit->pos));
-			if (Pathable(Observation()->GetGameInfo(),center)) {
+		
+		if (IsBuilding(unit->unit_type)) {
+			for (auto & gw : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || u.unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY; })) {
+				auto direction = proxy - unit->pos;
+				direction /= Distance2D(Point2D(0, 0), direction);
+				// point towards open spot
+				std::vector < Point2D > pos = { {-2,2},{0,2}, {2,2},
+															{-2,0},{0,0}, {2,0},
+															{-2,-2},{0,-2}, {2,-2} };
 				for (auto & p : pos) {
-					if (Pathable(Observation()->GetGameInfo(), p)) {
-						if (Query()->PathingDistance(p, center) != 0) {
-							Actions()->UnitCommand(unit, ABILITY_ID::RALLY_BUILDING, p,true);
-							break;
+					p += unit->pos;
+				}
+				sortByDistanceTo(pos, proxy);
+				auto center = defensePoint(map.FindNearestBase(unit->pos));
+				if (Pathable(Observation()->GetGameInfo(), center)) {
+					for (auto & p : pos) {
+						if (Pathable(Observation()->GetGameInfo(), p)) {
+							if (Query()->PathingDistance(p, center) != 0) {
+								Actions()->UnitCommand(unit, ABILITY_ID::RALLY_BUILDING, p, true);
+								break;
+							}
 						}
 					}
 				}
@@ -1026,6 +1029,23 @@ public:
 			}
 		}
 
+		if (minerals >= 100 && frame % 10 == 0) {
+			// let each base have at least one pylon
+			for (auto & strat : harvesting.getChildren()) {
+				if (strat.getCurrentHarvesters() >= 17) {					
+					auto & pos = strat.getPylonPos();
+					if (map.PlacementB(Observation()->GetGameInfo(),pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
+						auto  p = FindNearestUnit(pos,probs);
+						Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
+						Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos,true);
+						harvesters.erase(p->tag);
+						minerals -= 100;
+					}
+				}
+			}
+		}
+
+
 		if (needCannons) {
 			TryBuildCannons(pylons,harvesters);
 		}
@@ -1560,28 +1580,33 @@ private:
 			}
 		}
 		
-		auto ta = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL));
-		if (!ta.empty() && frame % 3 == 0) {
-			auto & f = *ta.begin();
-			if (f->build_progress == 1.0f && !YoActions()->isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
-				Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_CHARGE);
-				minerals -= 100;
-				gas -= 100;
-			}
-			chrono(f);
-		}
-
-		auto forge = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_FORGE));
-		if (!forge.empty() && frame % 3 == 0) {
-			auto & f = *forge.begin();
-			bool b = doUpgrade(f);
-			if (b)
+		if (frame % 3 == 0) {
+			auto ta = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL));
+			if (!ta.empty()) {
+				auto & f = *ta.begin();
+				if (f->build_progress == 1.0f && !YoActions()->isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
+					Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_CHARGE);
+					minerals -= 100;
+					gas -= 100;
+				}
 				chrono(f);
-		}
+			}
 
+			auto forge = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_FORGE));
+			if (!forge.empty()) {
+				auto & f = *forge.begin();
+				bool b = doUpgrade(f);
+				chrono(f);
+			}
+			auto robos = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY));
+			for (auto & ro : robos) {
+				chrono(ro);
+			}
+		}
 		chronoBuild(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY, ABILITY_ID::TRAIN_IMMORTAL, 4, 250, 150);
 		chronoBuild(UNIT_TYPEID::PROTOSS_STARGATE, ABILITY_ID::TRAIN_VOIDRAY, 4, 250, 150);
-		chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);			
+		if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) <= 25)
+			chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);
 		
 	}
 
