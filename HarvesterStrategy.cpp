@@ -180,6 +180,16 @@ void HarvesterStrategy::initialize(const sc2::Unit * nexus, const sc2::Units & m
 		magicNexusSpots.insert_or_assign(targetMineral->tag, magicNexus);
 	}
 	allminerals = obs->GetUnits(Unit::Alliance::Neutral, [](const auto & u) { return sc2util::IsMineral(u.unit_type); });
+
+	Point2D cog(0, 0);
+	for (auto min : this->minerals) {
+		cog += min->pos;
+	}
+	cog /= this->minerals.size();
+	cog = nexus->pos - cog;
+	cog /= Distance2D(cog, Point2D(0, 0));
+	cog *= 5;
+	pylon = nexus->pos + cog;
 }
 
 void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::ObservationInterface * obs, YoAction * actions, bool inDanger)
@@ -573,7 +583,11 @@ void HarvesterStrategy::PrintDebug(sc2::DebugInterface * debug, const sc2::Obser
 				debug->DebugSphereOut(Point3D(p.x, p.y, m->pos.z + 0.1f), 0.1, Colors::Green);
 			ind++;
 		}
+		debug->DebugSphereOut(Point3D(pylon.x, pylon.y, nexus->pos.z + 0.1f), 0.1, Colors::Green);
+		debug->DebugTextOut("P",Point3D(pylon.x, pylon.y, nexus->pos.z + 0.1f), Colors::Green);
+
 	}
+
 }
 #endif
 
