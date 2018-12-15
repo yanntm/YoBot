@@ -3,14 +3,13 @@
 #include "sc2lib/sc2_lib.h"
 #include "sc2utils/sc2_manage_process.h"
 #include "sc2utils/sc2_arg_parser.h"
-
-#include "YoBot.h"
 #include "LadderInterface.h"
 
-#define TECHTREE 1
+//#define _GENTECHTREE 1
+#define _BOSEARCH 1
 
 #ifdef DEBUG
-#ifdef TECHTREE 
+#ifdef _GENTECHTREE 
 #include "BuildOrder.h"
 #include "TechBot.h"
 #include <regex>
@@ -63,6 +62,35 @@ int main(int argc, char* argv[])
 	}
 }
 #else
+#ifdef _BOSEARCH
+#include "BuildOrder.h"
+#include "BOBuilder.h"
+
+using namespace sc2;
+using namespace suboo;
+
+int main(int argc, char* argv[])
+{
+	BOBuilder builder;
+	   
+	BuildGoal goal(0); // ASAP
+	goal.addUnit(UnitId::PROTOSS_CARRIER, 1);
+	builder.addGoal(goal);
+	goal.print(std::cout);
+
+	BuildOrder bo = builder.computeBO();
+
+	bo.print(std::cout);
+	std::string s;
+	std::cin >> s;
+
+	return 0;
+}
+
+#else
+
+#include "YoBot.h"
+
 class Human : public sc2::Agent {
 
 };
@@ -113,7 +141,11 @@ int main(int argc, char* argv[])
 	}
 }
 #endif
+#endif
 #else 
+
+#include "YoBot.h"
+
 //*************************************************************************************************
 int main(int argc, char* argv[]) 
 {
