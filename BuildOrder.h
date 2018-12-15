@@ -9,6 +9,7 @@ namespace suboo {
 	using UnitId = sc2::UNIT_TYPEID ;
 
 	struct Unit {
+		int index;
 		UnitId type;
 		std::string name;
 		int mineral_cost;
@@ -36,8 +37,8 @@ namespace suboo {
 		};
 		BuilderEffect effect;
 
-		Unit(UnitId type, const std::string & name, int mineral_cost, int vespene_cost, int food_provided, UnitId builder, UnitId prereq, int production_time, int travel_time, BuilderEffect effect):
-			type(type),name(name), mineral_cost(mineral_cost), vespene_cost(vespene_cost),food_provided(food_provided),builder(builder),prereq(prereq),production_time(production_time),effect(effect) 
+		Unit(int index, UnitId type, const std::string & name, int mineral_cost, int vespene_cost, int food_provided, UnitId builder, UnitId prereq, int production_time, int travel_time, BuilderEffect effect):
+			index(index),type(type),name(name), mineral_cost(mineral_cost), vespene_cost(vespene_cost),food_provided(food_provided),builder(builder),prereq(prereq),production_time(production_time),effect(effect) 
 		{}
 	};
 
@@ -68,25 +69,28 @@ namespace suboo {
 	class TechTree {
 		std::vector<Unit> units;
 		GameState initial;
-	public :
+		std::vector<int> indexes; // correspondance from UnitId to unit index
 		TechTree();
+	public:
+		// singleton
+		static const TechTree & getTechTree();
+		int getUnitIndex(UnitId id) const;
+		const Unit & getUnitById(UnitId id) const;
+		const Unit & getUnitByIndex(int index) const;
+		TechTree(const TechTree &) = delete;
+		size_t size() const { return indexes.size(); }
 	};
 
 	enum BuildAction {
-		BUILD_NEXUS,
-		BUILD_PROBE,
-		BUILD_PYLON,
-		BUILD_GATEWAY,
-		BUILD_ZEALOT,
-		MINE_VESPENE,
-		MINE_MINERALS,
+		BUILD,
+		TRANSFER_VESPENE,
 		CHRONO
 	};
 
 	class BuildItem {
 		BuildAction action;
 		UnitId target;
-
+	public :
 		// from a given GameState, the set of actions necessary to make this action possible
 		// derived from prerequisites of the build item + game state
 		// waiting for gas/gold to accumulate is ok
@@ -96,6 +100,9 @@ namespace suboo {
 		// make sure this is the case by calling above make Possible first, since this just steps simulation forward
 		// updates the game state
 		void executeBuildItem(GameState & s);
+		void print(std::ostream & out);
+		
+		BuildItem(UnitId id) :action(BUILD), target(id) {}
 	};
 
 	class BuildOrder {
@@ -106,8 +113,20 @@ namespace suboo {
 		GameState final;
 		GameState current;
 		int nextItem;
+	public :
+		void print(std::ostream & out);
+		void addItem(UnitId tocreate);
+	};
 
-
+	class BuildGoal {
+		// using index of Unit to get desired quantity
+		std::vector<int> desiredPerUnit;
+		int framesToCompletion; // 0 indicates ASAP
+	public :
+		BuildGoal(int deadline);
+		void addUnit(UnitId id, int qty);
+		void print(std::ostream & out);
+		int getQty(int index) const { return desiredPerUnit[index]; }
 	};
 
 }
