@@ -122,7 +122,7 @@ namespace suboo {
 		void print(std::ostream & out);
 		void addItem(UnitId tocreate);
 		void addItemFront(UnitId tocreate);
-		std::deque<BuildItem> & getItems() { return items; }
+		const std::deque<BuildItem> & getItems() const { return items; }
 	};
 
 	class BuildGoal {
