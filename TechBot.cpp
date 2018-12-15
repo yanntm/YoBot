@@ -90,10 +90,19 @@ void suboo::TechBot::OnStep()
 		out << "	}) {\n";
 		out << "  units = {\n";
 
-
+		// reindex units
+		int index = 0;
+		// to compute max
+		int maxunitID = 0;
+		// associations as pairs
+		std::vector<std::pair<int, int> > ind;
 		for (const sc2::UnitTypeData & unitdesc : types) {
 
 			if (isRelevant(unitdesc)) {
+				if ((int)unitdesc.unit_type_id > maxunitID) {
+					maxunitID = (int)unitdesc.unit_type_id;
+				}
+				ind.push_back({ (int)unitdesc.unit_type_id , index});
 				if (sc2util::IsBuilding(unitdesc.unit_type_id))
 				{	// protoss buildings are all produced by a probe walking there 
 					int traveltime = 4; // default estimate is 4 seconds to reach build site
@@ -103,6 +112,7 @@ void suboo::TechBot::OnStep()
 					auto builderid = abilityToUnit[(int)unitdesc.ability_id];
 					if (builderid != 0) {
 						out << "{"
+							"	" << index++ << ", // index" << std::endl <<
 							"	(UnitId)" << unitdesc.unit_type_id << ",  // ID" << std::endl <<
 							"	\"" << unitdesc.name << "\", // name" << std::endl <<
 							"	" << unitdesc.mineral_cost << ", // gold" << std::endl <<
@@ -127,6 +137,7 @@ void suboo::TechBot::OnStep()
 					// TODO no archons : need two templar to have the ability
 					if (builderid != 0) {
 						out << "{"
+							"	" << index++ << ", // index" << std::endl <<
 							"	(UnitId)" << unitdesc.unit_type_id << ",  // ID" << std::endl <<
 							"	\"" << unitdesc.name << "\", // name" << std::endl <<
 							"	" << unitdesc.mineral_cost << ", // gold" << std::endl <<
@@ -142,9 +153,15 @@ void suboo::TechBot::OnStep()
 				}
 			}
 		};
-
-
 		out << "  }; // end units\n";
+		// build index from unitID to index
+		
+		out << "  indexes=std::vector<int>("<< (maxunitID+1) <<",0); \n";		
+		for (auto & p : ind) {
+			out << "  indexes[" << p.first << "] = " << p.second << ";\n";
+		}
+
+		
 		out << "} //end ctor \n";
 		out << "} //end ns \n";
 		out.close();
