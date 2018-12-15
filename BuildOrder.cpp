@@ -48,7 +48,7 @@ namespace suboo {
 	{
 		int step = 1;
 		for (auto & bi : items) {
-			out << step << ":";
+			out << step++ << ":";
 			bi.print(out);
 			out << std::endl;
 		}
@@ -57,9 +57,21 @@ namespace suboo {
 	{		
 		items.emplace_back(BuildItem(tocreate));
 	}
+	void BuildOrder::addItemFront(UnitId tocreate)
+	{
+		items.push_front(BuildItem(tocreate));
+	}
 	void BuildItem::print(std::ostream & out)
 	{
 		auto & tech = TechTree::getTechTree();
 		out << "Build " << tech.getUnitById(target).name;
+	}
+	bool GameState::hasUnit(UnitId unit) const
+	{
+		return std::any_of(units.begin(), units.end(), [unit](auto & u) {return u.type == unit; });
+	}
+	void GameState::addUnit(UnitId unit)
+	{
+		units.emplace_back(UnitInstance(unit));
 	}
 }
