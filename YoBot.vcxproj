@@ -121,6 +121,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_TECHTREE;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -143,7 +144,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\s2client-api\build\generated;..\s2client-api\contrib\SDL-mirror\include;..\s2client-api\contrib\civetweb\include;..\s2client-api\src\..\include;..\s2client-api\contrib\protobuf\src;..\s2client-api\contrib\civetweb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>DEBUG;TECHTREE;_SCL_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_TECHTREE;_SCL_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -183,6 +184,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BOBuilder.cpp" />
+    <ClCompile Include="BuildOrder.cpp" />
     <ClCompile Include="DistUtil.cpp" />
     <ClCompile Include="HarvesterStrategy.cpp" />
     <ClCompile Include="MapTopology.cpp" />
@@ -196,6 +199,7 @@
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BOBuilder.h" />
     <ClInclude Include="DistUtil.h" />
     <ClInclude Include="HarvesterStrategy.h" />
     <ClInclude Include="AStar.h" />
