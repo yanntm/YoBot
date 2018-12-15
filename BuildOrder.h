@@ -64,6 +64,8 @@ namespace suboo {
 	public :
 		GameState(const std::vector<UnitInstance> & units = {}, int minerals=0, int vespene=0) : units(units), minerals(minerals), vespene(vespene), timestamp(0) {}
 		const std::vector<UnitInstance> & getUnits() const { return units; }
+		bool hasUnit(UnitId unit) const;
+		void addUnit(UnitId unit);
 	};
 
 	class TechTree {
@@ -79,6 +81,7 @@ namespace suboo {
 		const Unit & getUnitByIndex(int index) const;
 		TechTree(const TechTree &) = delete;
 		size_t size() const { return indexes.size(); }
+		const GameState & getInitial() const { return initial; }
 	};
 
 	enum BuildAction {
@@ -103,11 +106,13 @@ namespace suboo {
 		void print(std::ostream & out);
 		
 		BuildItem(UnitId id) :action(BUILD), target(id) {}
+		BuildAction getAction() const { return action; }
+		UnitId getTarget() const { return target; }
 	};
 
 	class BuildOrder {
 		GameState initial;
-		std::vector<BuildItem> items;
+		std::deque<BuildItem> items;
 
 		std::vector<int> timings;
 		GameState final;
@@ -116,6 +121,8 @@ namespace suboo {
 	public :
 		void print(std::ostream & out);
 		void addItem(UnitId tocreate);
+		void addItemFront(UnitId tocreate);
+		std::deque<BuildItem> & getItems() { return items; }
 	};
 
 	class BuildGoal {
