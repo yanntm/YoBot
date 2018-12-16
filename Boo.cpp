@@ -106,16 +106,19 @@ namespace suboo {
 		int ass = base.getFinal().countUnit(UnitId::PROTOSS_ASSIMILATOR);
 		int prob = base.getFinal().countUnit(UnitId::PROTOSS_PROBE);
 		if (base.getFinal().getMinerals() < 20 && (20 * nexi + 3*ass) > prob) {
-			BuildOrder candidate = base;
-			candidate.addItemFront(UnitId::PROTOSS_PROBE);
-			if (timeBO(candidate)) {
-				int delta = base.getFinal().getTimeStamp() - candidate.getFinal().getTimeStamp();
-				if (delta > 0) {
-					return { delta, candidate };
+			BuildOrder best = base;
+			for (int i = 0, e = best.getItems().size(); i < e; i++) {
+				BuildOrder candidate = best;				
+				candidate.insertItem(UnitId::PROTOSS_PROBE, i);
+				if (timeBO(candidate)) {
+					int delta = best.getFinal().getTimeStamp() - candidate.getFinal().getTimeStamp();
+					if (delta > 0) {
+						return { delta, candidate };
+					}
 				}
 			}
 		}
-		return std::pair<int, BuildOrder>(0, BuildOrder());		return std::pair<int, BuildOrder>();
+		return std::pair<int, BuildOrder>(0, BuildOrder());	
 	}
 
 }
