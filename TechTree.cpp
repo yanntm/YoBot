@@ -4,17 +4,17 @@ namespace suboo {
 TechTree::TechTree() :
 	initial({ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)59),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
 	}) {
   units = {
 {	0, // index
@@ -84,7 +84,7 @@ TechTree::TechTree() :
 	0, // gas
 	0,  // food
 	(UnitId)84,  // builder unit  
-	(UnitId)59,  // tech requirement  
+	(UnitId)60,  // tech requirement  
 	46, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
