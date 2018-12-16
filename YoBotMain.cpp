@@ -75,12 +75,19 @@ int main(int argc, char* argv[])
 	   
 	BuildGoal goal(0); // ASAP
 	goal.addUnit(UnitId::PROTOSS_CARRIER, 1);
+	goal.addUnit(UnitId::PROTOSS_IMMORTAL, 1);
+	goal.addUnit(UnitId::PROTOSS_DISRUPTOR, 1);
 	builder.addGoal(goal);
 	goal.print(std::cout);
 
 	BuildOrder bo = builder.computeBO();
-
+	std::cout << "Initial realizable :" << std::endl;
 	bo.print(std::cout);
+	auto boopt = builder.improveBO(bo);
+	std::cout << "Final realizable :" << std::endl;
+	boopt.print(std::cout);
+
+
 	std::string s;
 	std::cin >> s;
 
