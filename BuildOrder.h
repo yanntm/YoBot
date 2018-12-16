@@ -70,7 +70,7 @@ namespace suboo {
 	public :
 		GameState(const std::vector<UnitInstance> & units = {}, int minerals = 0, int vespene = 0) : units(units), minerals(minerals), mps(-1.0), vespene(vespene), vps(-1.0), timestamp(0) {}
 		const std::vector<UnitInstance> & getUnits() const { return units; }
-		bool hasUnit(UnitId unit) const;
+		bool hasUnit(UnitId unit) const; // must be free; 
 		void addUnit(UnitId unit);
 		void addUnit(const UnitInstance & unit);
 		float getMineralsPerSecond() const;
@@ -85,7 +85,9 @@ namespace suboo {
 		void stepForward(int secs);
 		bool waitForResources(int mins, int vesp);
 		bool waitforUnitCompletion(UnitId id);
+		bool waitforUnitFree(UnitId id);
 		bool assignProbe(UnitInstance::UnitState state);
+		bool assignFreeUnit(UnitId type, UnitInstance::UnitState state, int time);
 		int getTimeStamp() const { return timestamp; }
 		void print(std::ostream & out) const;
 		int countUnit(UnitId id) const;
@@ -153,6 +155,11 @@ namespace suboo {
 		void addItemFront(T tocreate)
 		{
 			items.push_front(BuildItem(tocreate));
+		}
+		template<typename T>
+		void insertItem(T tocreate, int index)
+		{
+			items.insert(items.begin() + index, BuildItem(tocreate));
 		}
 		const std::deque<BuildItem> & getItems() const { return items; }
 		std::deque<BuildItem> & getItems() { return items; }
