@@ -27,6 +27,9 @@ namespace suboo {
 		GameState state = tech.getInitial();
 		BuildOrder bopre;
 		std::unordered_set<UnitId> seen;
+		for (auto & u : state.getUnits()) {
+			seen.insert(u.type);
+		}
 		for (auto & bi : bo.getItems()) {
 			if (bi.getAction() == BUILD) {
 				auto target = bi.getTarget();
