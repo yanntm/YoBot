@@ -1,6 +1,7 @@
 #include "BOBuilder.h"
 #include "UnitTypes.h"
 #include <unordered_set>
+#include <iostream>
 
 namespace suboo {
 
@@ -88,9 +89,26 @@ namespace suboo {
 
 	BuildOrder BOBuilder::computeBO()
 	{
+		auto & tech = TechTree::getTechTree();
 		BuildOrder bo = makeBOFromGoal();
 		bo = enforcePrereq(bo);
 		bo = addPower(bo);
+		// at this point BO should be doable.
+		// simulate it for timing
+		auto gs = tech.getInitial();
+		for (auto & bi : bo.getItems()) {
+			auto & u = tech.getUnitById(bi.getTarget());
+			std::cout << "On bi :"; bi.print(std::cout);
+			std::cout << std::endl;			
+			gs.waitForResources(u.mineral_cost, u.vespene_cost);
+			if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
+				gs.waitforUnitCompletion(u.prereq);
+			}
+			gs.getMinerals() -= u.mineral_cost;
+			gs.getVespene() -= u.vespene_cost;
+			gs.addUnit(UnitInstance(u.type,UnitInstance::BUILDING, TechTree::getTechTree().getUnitById(u.type).production_time));
+		}
+		bo.getFinal() = gs;
 		return bo;
 	}
 
