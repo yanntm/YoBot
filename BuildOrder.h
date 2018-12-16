@@ -57,7 +57,7 @@ namespace suboo {
 		UnitInstance(UnitId type, UnitState state, int time_to_free) :type(type), state(state), time_to_free(time_to_free) {}
 		void print(std::ostream & out) const;
 	};
-
+	std::string to_string(const UnitInstance::UnitState & state);
 	class GameState {
 		std::vector<UnitInstance> units;
 		
@@ -70,7 +70,8 @@ namespace suboo {
 	public :
 		GameState(const std::vector<UnitInstance> & units = {}, int minerals = 0, int vespene = 0) : units(units), minerals(minerals), mps(-1.0), vespene(vespene), vps(-1.0), timestamp(0) {}
 		const std::vector<UnitInstance> & getUnits() const { return units; }
-		bool hasUnit(UnitId unit) const; // must be free; 
+		bool hasFreeUnit(UnitId unit) const; // must be free; 
+		bool hasFinishedUnit(UnitId unit) const; // must be finished; 
 		void addUnit(UnitId unit);
 		void addUnit(const UnitInstance & unit);
 		float getMineralsPerSecond() const;
@@ -86,6 +87,8 @@ namespace suboo {
 		bool waitForResources(int mins, int vesp);
 		bool waitforUnitCompletion(UnitId id);
 		bool waitforUnitFree(UnitId id);
+		bool waitforFreeSupply(int needed);
+		
 		bool assignProbe(UnitInstance::UnitState state);
 		bool assignFreeUnit(UnitId type, UnitInstance::UnitState state, int time);
 		int getTimeStamp() const { return timestamp; }
