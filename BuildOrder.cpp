@@ -151,6 +151,7 @@ namespace suboo {
 			return false;
 		}
 		else {
+			std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " for " << it->time_to_free << "s." << std::endl;
 			stepForward(it->time_to_free);
 			return true;
 		}
