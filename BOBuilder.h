@@ -7,9 +7,10 @@ namespace suboo {
 	class BOBuilder {
 		std::vector<BuildGoal> goals;
 		BuildOrder makeBOFromGoal();
+		
 	public:
 		void addGoal(const BuildGoal & goal) { goals.emplace_back(goal); }
-		
+		static BuildOrder enforcePrereq(const BuildOrder & bo);
 		BuildOrder computeBO();	
 		BuildOrder improveBO(const BuildOrder & bo);
 	};
