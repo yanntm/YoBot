@@ -1093,7 +1093,7 @@ public:
 		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0 && !YoActions()->isBusy(bob->tag)) {
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
 			if (Query()->Placement(ABILITY_ID::BUILD_NEXUS,proxy)) {
-				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy);
+				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy,true);
 				map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::proxy));
 			}
 			// basic counting bob as harvester should be enough
