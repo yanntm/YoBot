@@ -299,7 +299,7 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 	}
 	
 	// kinda costly, disabled by default
-	if (true) {
+	if (false) {
 		int res = 0;
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
