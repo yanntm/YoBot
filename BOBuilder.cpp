@@ -69,12 +69,6 @@ namespace suboo {
 					state.addUnit(UnitId::PROTOSS_ASSIMILATOR);
 				}
 
-				if (unit.food_provided < 0 && soup < -unit.food_provided) {
-					pre.push_back(UnitId::PROTOSS_PYLON);
-					state.addUnit(UnitId::PROTOSS_PYLON);
-				}
-
-
 				std::reverse(pre.begin(), pre.end());
 				for (auto & id : pre) {
 					bopre.addItem(id);
@@ -167,6 +161,26 @@ namespace suboo {
 				if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
 					if (!gs.waitforUnitCompletion(u.prereq)) {
 						std::cout << "Insufficient requirements missing :" << tech.getUnitById(u.prereq).name << std::endl;
+						gs.print(std::cout);
+						return false;
+					}
+				}
+				if ((int)u.builder != 0 && !gs.hasUnit(u.prereq)) {
+					if (!gs.waitforUnitFree(u.builder)) {
+						std::cout << "Insufficient requirements missing :" << tech.getUnitById(u.builder).name << std::endl;
+						gs.print(std::cout);
+						return false;
+					}
+					if (u.effect == u.TRAVEL) {
+						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.travel_time);
+					}
+					else if (u.effect == u.BUSY) {
+						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.production_time);
+					}
+				}
+				if (u.food_provided < 0 && gs.getAvailableSupply() < -u.food_provided) {
+					if (!gs.waitforUnitFree(UnitId::PROTOSS_PYLON)) {
+						std::cout << "Insufficient food missing pylons." << std::endl;
 						gs.print(std::cout);
 						return false;
 					}
