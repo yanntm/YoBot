@@ -22,7 +22,35 @@ namespace suboo {
 		return bo;
 	}
 
-	static BuildOrder enforcePrereq(const BuildOrder & bo) {
+	void addPreReq(std::vector<UnitId> & pre, GameState & state, std::unordered_set<UnitId> & seen, UnitId target, const TechTree & tech) {
+		auto & unit = tech.getUnitById(target);
+		if ((int)unit.prereq != 0) {
+			if (!state.hasFinishedUnit(unit.prereq)) {
+				addPreReq(pre, state, seen, unit.prereq, tech);
+			}
+		}
+		if ((int)unit.builder != 0) {
+			if (!state.hasFreeUnit(unit.builder)) {
+				addPreReq(pre, state, seen, unit.builder, tech);
+			}
+		}
+		// food
+		auto soup = state.getAvailableSupply();
+		if (unit.food_provided < 0 && soup < -unit.food_provided) {
+			pre.push_back(UnitId::PROTOSS_PYLON);
+			state.addUnit(UnitId::PROTOSS_PYLON);
+		}
+		// vespene
+		if (unit.vespene_cost > 0 && !state.hasFinishedUnit(UnitId::PROTOSS_ASSIMILATOR)) {
+			pre.push_back(UnitId::PROTOSS_ASSIMILATOR);
+			state.addUnit(UnitId::PROTOSS_ASSIMILATOR);			
+		}
+		pre.push_back(unit.type);
+		state.addUnit(unit.type);
+		seen.insert(unit.type);
+	}
+
+	BuildOrder BOBuilder::enforcePrereq(const BuildOrder & bo) {
 		auto & tech = TechTree::getTechTree();
 		// enforce prerequisites
 		GameState state = tech.getInitial();
@@ -35,82 +63,26 @@ namespace suboo {
 			if (bi.getAction() == BUILD) {
 				auto target = bi.getTarget();
 				auto & unit = tech.getUnitById(target);
-
 				// unit prereq				
 				std::vector<UnitId> pre;
-				for (UnitId prereq = unit.prereq; (int)prereq != 0; prereq = tech.getUnitById(prereq).prereq) {
-					if (!state.hasUnit(prereq)) {
-						pre.push_back(prereq);
-						state.addUnit(prereq);
-						seen.insert(prereq);
-					}
-				}
-				// builder and prereq				
-				for (UnitId prereq = unit.builder; (int)prereq != 0; prereq = tech.getUnitById(prereq).builder) {
-					if (seen.find(prereq) != seen.end()) {
-						break;
-					}
-					if (!state.hasUnit(prereq)) {
-						pre.push_back(prereq);
-						state.addUnit(prereq);
-						seen.insert(prereq);
-					}
-				}
-				// food
-				auto soup = state.getAvailableSupply();
-				if (unit.food_provided < 0 &&  soup < -unit.food_provided) {
-					pre.push_back(UnitId::PROTOSS_PYLON);
-					state.addUnit(UnitId::PROTOSS_PYLON);
-				}
-				// vespene
-				if (unit.vespene_cost > 0 && !state.hasUnit(UnitId::PROTOSS_ASSIMILATOR)) {					
-					
-					pre.push_back(UnitId::PROTOSS_ASSIMILATOR);
-					state.addUnit(UnitId::PROTOSS_ASSIMILATOR);
-				}
-
-				std::reverse(pre.begin(), pre.end());
+				addPreReq(pre, state, seen, unit.type, tech);
+				
 				for (auto & id : pre) {
 					bopre.addItem(id);
 					if (id == UnitId::PROTOSS_ASSIMILATOR) {
-						for (int i = 0; i < 3; i++) {
+						//for (int i = 0; i < 3; i++) {
 							bopre.addItem(BuildAction::TRANSFER_VESPENE);
-						}
+						//}
 					}
-				}
-				bopre.addItem(target);
-				state.addUnit(target);
+				}							
+			}
+			else {
+				bopre.addItem(bi.getAction());
 			}
 		}
 		return bopre;
 	}
 
-	static BuildOrder addPower(const BuildOrder & bo) {
-		auto & tech = TechTree::getTechTree();
-		BuildOrder bopre;
-		auto state = tech.getInitial();
-		for (auto & bi : bo.getItems()) {
-			if (bi.getAction() == BUILD) {
-				auto target = bi.getTarget();
-				auto & unit = tech.getUnitById(target);
-				// deal with power				
-				if (target != UnitId::PROTOSS_NEXUS
-					&& target != UnitId::PROTOSS_PYLON
-					&& unit.builder == UnitId::PROTOSS_PROBE
-					&& sc2util::IsBuilding(target)
-					)
-				{
-					auto prereq = UnitId::PROTOSS_PYLON;
-					if (!state.hasUnit(prereq)) {
-						bopre.addItemFront(prereq);
-						state.addUnit(prereq);
-					}
-				}
-				bopre.addItem(target);
-			}
-		}
-		return bopre;
-	}
 
 	BuildOrder BOBuilder::computeBO()
 	{		
@@ -126,6 +98,7 @@ namespace suboo {
 		optimizers.emplace_back(new LeftShifter());
 		optimizers.emplace_back(new AddVespeneGatherer());
 		optimizers.emplace_back(new AddMineralGatherer());
+		optimizers.emplace_back(new AddProduction());
 		BuildOrder best = bo;
 		int gain = 0;
 		do {
@@ -136,6 +109,10 @@ namespace suboo {
 					gain += res.first;
 					best = res.second;
 					std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
+					best.print(std::cout);
+				}
+				else {
+					std::cout << "No improvement of results using " << p->getName() << ". Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
 				}
 			}
 		} while (gain > 0);
@@ -158,16 +135,16 @@ namespace suboo {
 					gs.print(std::cout);
 					return false;
 				}
-				if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
+				if ((int)u.prereq != 0 && !gs.hasFinishedUnit(u.prereq)) {
 					if (!gs.waitforUnitCompletion(u.prereq)) {
-						std::cout << "Insufficient requirements missing :" << tech.getUnitById(u.prereq).name << std::endl;
+						std::cout << "Insufficient requirements missing tech req :" << tech.getUnitById(u.prereq).name << std::endl;
 						gs.print(std::cout);
 						return false;
 					}
 				}
-				if ((int)u.builder != 0 && !gs.hasUnit(u.prereq)) {
+				if ((int)u.builder != 0 && !gs.hasFreeUnit(u.prereq)) {
 					if (!gs.waitforUnitFree(u.builder)) {
-						std::cout << "Insufficient requirements missing :" << tech.getUnitById(u.builder).name << std::endl;
+						std::cout << "Insufficient requirements missing builder :" << tech.getUnitById(u.builder).name << std::endl;
 						gs.print(std::cout);
 						return false;
 					}
@@ -179,9 +156,9 @@ namespace suboo {
 					}
 				}
 				if (u.food_provided < 0 && gs.getAvailableSupply() < -u.food_provided) {
-					if (!gs.waitforUnitFree(UnitId::PROTOSS_PYLON)) {
-						std::cout << "Insufficient food missing pylons." << std::endl;
-						gs.print(std::cout);
+					if (!gs.waitforFreeSupply(-u.food_provided)) {
+						//std::cout << "Insufficient food missing pylons." << std::endl;
+						//gs.print(std::cout);
 						return false;
 					}
 				}
@@ -194,7 +171,34 @@ namespace suboo {
 			}
 			else if (bi.getAction() == TRANSFER_VESPENE) {
 				auto prereq = UnitId::PROTOSS_ASSIMILATOR;
-				if (!gs.hasUnit(prereq)) {
+				if (!gs.hasFreeUnit(prereq)) {
+					if (!gs.waitforUnitCompletion(prereq)) {
+						std::cout << "No assimilator in state \n";
+						gs.print(std::cout);
+						return false;
+					}
+				}
+				int gas = 0;
+				int soongas = 0;
+
+				int vcount =0;
+				for (auto & u : gs.getUnits()) {
+					if (u.state == UnitInstance::MINING_VESPENE) {
+						vcount++;
+					}
+					else if (u.type == UnitId::PROTOSS_ASSIMILATOR && u.state == UnitInstance::FREE) {
+						gas++;
+					}
+					else if (u.type == UnitId::PROTOSS_ASSIMILATOR) {
+						soongas++;
+					}
+				}
+				if (vcount >= 3 * (gas+soongas)) {
+					std::cout << "Gas over saturated \n";
+					gs.print(std::cout);
+					return false;
+				}
+				if (vcount >= 3 * gas) {
 					if (!gs.waitforUnitCompletion(prereq)) {
 						std::cout << "No assimilator in state \n";
 						gs.print(std::cout);
