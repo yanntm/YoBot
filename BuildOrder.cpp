@@ -75,7 +75,10 @@ namespace suboo {
 	}
 	bool GameState::hasUnit(UnitId unit) const
 	{
-		return std::any_of(units.begin(), units.end(), [unit](auto & u) {return u.type == unit && u.state != u.BUILDING; });
+		return std::any_of(units.begin(), units.end(), [unit](auto & u) {
+			return (u.type == unit && u.state == u.FREE) 
+				|| (sc2util::IsWorkerType(unit) && u.state == u.MINING_MINERALS); 
+		});
 	}
 	void GameState::addUnit(UnitId unit)
 	{
@@ -216,6 +219,31 @@ namespace suboo {
 			return true;
 		}
 	}
+	bool GameState::waitforUnitFree(UnitId id)
+	{
+		auto it = std::find_if(units.begin(), units.end(), [id](auto & u) {return u.type == id && u.state == u.FREE || (sc2util::IsWorkerType(id) && u.state == u.MINING_MINERALS); });
+		if (it != units.end()) {
+			return true;
+		}
+		int index = 0;
+		int best = -1;
+		for (auto & u : units) {
+			if (u.type == id && u.state != u.FREE && u.time_to_free != 0) {
+				if (best = -1 || units[best].time_to_free > u.time_to_free) {
+					best = index;
+				}
+			}
+			index++;
+		}
+		if (best == -1) {
+			return false;
+		}
+		else {
+			std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " to be free for " << units[best].time_to_free << "s." << std::endl;
+			stepForward(units[best].time_to_free);
+			return true;
+		}
+	}
 	bool GameState::assignProbe(UnitInstance::UnitState state)
 	{
 		bool done = false;
@@ -239,6 +267,17 @@ namespace suboo {
 			}
 		}
 		return done;
+	}
+	bool GameState::assignFreeUnit(UnitId type, UnitInstance::UnitState state, int time)
+	{
+		for (auto & u : units) {
+			if (type == u.type && u.state == u.FREE) {
+				u.state = state;
+				u.time_to_free = time;
+				return true;
+			}
+		}
+		return false;
 	}
 	void GameState::print(std::ostream & out) const
 	{
@@ -271,6 +310,9 @@ namespace suboo {
 			break;
 		case MINING_VESPENE :
 			status = "V";
+			break;
+		case BUSY :
+			status = "C";
 			break;
 		case FREE:
 		default:
