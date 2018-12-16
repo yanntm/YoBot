@@ -117,6 +117,10 @@ void suboo::TechBot::OnStep()
 					}
 					auto builderid = abilityToUnit[(int)unitdesc.ability_id];
 					if (builderid != 0) {
+						auto techreq = unitdesc.tech_requirement;
+						if (unitdesc.unit_type_id == UnitId::PROTOSS_GATEWAY) {
+							techreq = UnitId::PROTOSS_PYLON;
+						}
 						out << "{"
 							"	" << index++ << ", // index" << std::endl <<
 							"	(UnitId)" << unitdesc.unit_type_id << ",  // ID" << std::endl <<
@@ -125,7 +129,7 @@ void suboo::TechBot::OnStep()
 							"	" << unitdesc.vespene_cost << ", // gas" << std::endl <<
 							"	" << unitdesc.food_provided - unitdesc.food_required << ",  // food" << std::endl <<
 							"	(UnitId)" << (int)builderid << ",  // builder unit  " << std::endl <<
-							"	(UnitId)" << (int)unitdesc.tech_requirement << ",  // tech requirement  " << std::endl <<
+							"	(UnitId)" << (int)techreq << ",  // tech requirement  " << std::endl <<
 							"	" << (int) ( (float) unitdesc.build_time / 22.4) << ", // build time" << std::endl << // 22.4 frames per game second
 							"	" << traveltime << ",   // travel time" << std::endl <<
 							"	Unit::TRAVEL  // probe behavior" << std::endl <<
