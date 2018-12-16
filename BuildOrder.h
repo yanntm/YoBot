@@ -44,28 +44,47 @@ namespace suboo {
 
 	struct UnitInstance {
 		enum UnitState {
-			BUSY, // being built, building something, traveling somewhere
+			BUILDING, // being built 
+			BUSY, // building something, traveling somewhere
 			MINING_VESPENE,
-			MINING_GAS,
+			MINING_MINERALS,
 			FREE // true for combat units all the time
 		};
 		UnitId type;
 		UnitState state;
 		int time_to_free; // -1 means we stay in state (e.g. mining) until new orders come in
-		UnitInstance(UnitId type) : type(type),state(FREE),time_to_free(0) {}		
+		UnitInstance(UnitId type);
+		UnitInstance(UnitId type, UnitState state, int time_to_free) :type(type), state(state), time_to_free(time_to_free) {}
+		void print(std::ostream & out) const;
 	};
 
 	class GameState {
 		std::vector<UnitInstance> units;
 		
-		int minerals;
-		int vespene; 
+		float minerals;
+		mutable float mps;
+		float vespene; 
+		mutable float vps;
 		int timestamp;
+
 	public :
-		GameState(const std::vector<UnitInstance> & units = {}, int minerals=0, int vespene=0) : units(units), minerals(minerals), vespene(vespene), timestamp(0) {}
+		GameState(const std::vector<UnitInstance> & units = {}, int minerals = 0, int vespene = 0) : units(units), minerals(minerals), mps(-1.0), vespene(vespene), vps(-1.0), timestamp(0) {}
 		const std::vector<UnitInstance> & getUnits() const { return units; }
 		bool hasUnit(UnitId unit) const;
 		void addUnit(UnitId unit);
+		void addUnit(const UnitInstance & unit);
+		float getMineralsPerSecond() const;
+		float getVespenePerSecond() const;
+		float getMinerals() const { return minerals; }
+		float & getMinerals() { return minerals; }
+		float getVespene() const { return vespene; }
+		float & getVespene()  { return vespene; }
+
+		void stepForward(int secs);
+		bool waitForResources(int mins, int vesp);
+		bool waitforUnitCompletion(UnitId id);
+		int getTimeStamp() const { return timestamp; }
+		void print(std::ostream & out) const;
 	};
 
 	class TechTree {
@@ -93,17 +112,12 @@ namespace suboo {
 	class BuildItem {
 		BuildAction action;
 		UnitId target;
-	public :
-		// from a given GameState, the set of actions necessary to make this action possible
-		// derived from prerequisites of the build item + game state
-		// waiting for gas/gold to accumulate is ok
-		// answer is empty if waiting is all we need to do or we can do the action immediately.
-		std::vector<BuildAction> makePossible(const GameState & s);
+	public :		
 		// compute time to completion, from a given game state, assuming that the action is possible
-		// make sure this is the case by calling above make Possible first, since this just steps simulation forward
+		// make sure this is the case, since this just steps simulation forward
 		// updates the game state
 		void executeBuildItem(GameState & s);
-		void print(std::ostream & out);
+		void print(std::ostream & out) const;
 		
 		BuildItem(UnitId id) :action(BUILD), target(id) {}
 		BuildAction getAction() const { return action; }
@@ -123,6 +137,8 @@ namespace suboo {
 		void addItem(UnitId tocreate);
 		void addItemFront(UnitId tocreate);
 		const std::deque<BuildItem> & getItems() const { return items; }
+		GameState & getFinal() { return final; }
+		const GameState & getFinal() const { return final; }
 	};
 
 	class BuildGoal {
@@ -132,7 +148,7 @@ namespace suboo {
 	public :
 		BuildGoal(int deadline);
 		void addUnit(UnitId id, int qty);
-		void print(std::ostream & out);
+		void print(std::ostream & out) const;
 		int getQty(int index) const { return desiredPerUnit[index]; }
 	};
 
