@@ -79,10 +79,13 @@ namespace suboo {
 		float & getMinerals() { return minerals; }
 		float getVespene() const { return vespene; }
 		float & getVespene()  { return vespene; }
-
+		int getAvailableSupply() const;
+		int getUsedSupply() const;
+		int getMaxSupply() const;
 		void stepForward(int secs);
 		bool waitForResources(int mins, int vesp);
 		bool waitforUnitCompletion(UnitId id);
+		bool assignProbe(UnitInstance::UnitState state);
 		int getTimeStamp() const { return timestamp; }
 		void print(std::ostream & out) const;
 	};
@@ -106,12 +109,14 @@ namespace suboo {
 	enum BuildAction {
 		BUILD,
 		TRANSFER_VESPENE,
+		TRANSFER_MINERALS,
 		CHRONO
 	};
 
 	class BuildItem {
 		BuildAction action;
 		UnitId target;
+		int time;
 	public :		
 		// compute time to completion, from a given game state, assuming that the action is possible
 		// make sure this is the case, since this just steps simulation forward
@@ -119,9 +124,12 @@ namespace suboo {
 		void executeBuildItem(GameState & s);
 		void print(std::ostream & out) const;
 		
-		BuildItem(UnitId id) :action(BUILD), target(id) {}
+		BuildItem(UnitId id) :action(BUILD), target(id),time(0) {}
+		BuildItem(BuildAction action) :action(action), target(UnitId::INVALID), time(0) {}
+
 		BuildAction getAction() const { return action; }
 		UnitId getTarget() const { return target; }
+		void setTime(int ttime) { time = ttime; }
 	};
 
 	class BuildOrder {
@@ -135,8 +143,10 @@ namespace suboo {
 	public :
 		void print(std::ostream & out);
 		void addItem(UnitId tocreate);
+		void addItem(BuildAction action);
 		void addItemFront(UnitId tocreate);
 		const std::deque<BuildItem> & getItems() const { return items; }
+		std::deque<BuildItem> & getItems() { return items; }
 		GameState & getFinal() { return final; }
 		const GameState & getFinal() const { return final; }
 	};
