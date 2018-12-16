@@ -88,6 +88,7 @@ namespace suboo {
 		bool assignProbe(UnitInstance::UnitState state);
 		int getTimeStamp() const { return timestamp; }
 		void print(std::ostream & out) const;
+		int countUnit(UnitId id) const;
 	};
 
 	class TechTree {
@@ -130,25 +131,34 @@ namespace suboo {
 		BuildAction getAction() const { return action; }
 		UnitId getTarget() const { return target; }
 		void setTime(int ttime) { time = ttime; }
+		int getTime() const { return time; }
+		bool operator== (const BuildItem & other) const { return action == other.action && target == other.target ; }
 	};
 
 	class BuildOrder {
 		GameState initial;
 		std::deque<BuildItem> items;
-
-		std::vector<int> timings;
+		
 		GameState final;
 		GameState current;
 		int nextItem;
 	public :
 		void print(std::ostream & out);
-		void addItem(UnitId tocreate);
-		void addItem(BuildAction action);
-		void addItemFront(UnitId tocreate);
+		template<typename T> 
+		void addItem(T tocreate)
+		{
+			items.emplace_back(BuildItem(tocreate));
+		}
+		template<typename T>
+		void addItemFront(T tocreate)
+		{
+			items.push_front(BuildItem(tocreate));
+		}
 		const std::deque<BuildItem> & getItems() const { return items; }
 		std::deque<BuildItem> & getItems() { return items; }
 		GameState & getFinal() { return final; }
 		const GameState & getFinal() const { return final; }
+		void swapItems(int i, int j) { std::swap(items[i], items[j]); }
 	};
 
 	class BuildGoal {

@@ -57,18 +57,6 @@ namespace suboo {
 		out << "Reached state at " << final.getTimeStamp()  << std::endl;
 		final.print(out);
 	}
-	void BuildOrder::addItem(UnitId tocreate)
-	{		
-		items.emplace_back(BuildItem(tocreate));
-	}
-	void BuildOrder::addItem(BuildAction action)
-	{
-		items.emplace_back(BuildItem(action));
-	}
-	void BuildOrder::addItemFront(UnitId tocreate)
-	{
-		items.push_front(BuildItem(tocreate));
-	}
 	void BuildItem::print(std::ostream & out) const
 	{
 		auto & tech = TechTree::getTechTree();
@@ -198,13 +186,18 @@ namespace suboo {
 				secs += 1;
 			}
 			stepForward(secs);
-			std::cout << "Waited for minerals for " << secs << "s." << std::endl;
+			// std::cout << "Waited for minerals for " << secs << "s." << std::endl;
 		}
 		else if (mins > minerals) {
 				return false;			
 		}
 		if (vesp > vespene && getVespenePerSecond() > 0) {
-			stepForward((vesp - vespene) / vps);
+			int secs = (vesp - vespene) / vps;
+			if (((vesp - vespene) / vps) - secs > 0) {
+				secs += 1;
+			}
+			stepForward(secs);
+			// std::cout << "Waited for vespene for " << secs << "s." << std::endl;
 		}
 		else if (vesp > vespene) {
 			return false;
@@ -218,7 +211,7 @@ namespace suboo {
 			return false;
 		}
 		else {
-			std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " for " << it->time_to_free << "s." << std::endl;
+			// std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " for " << it->time_to_free << "s." << std::endl;
 			stepForward(it->time_to_free);
 			return true;
 		}
@@ -256,6 +249,10 @@ namespace suboo {
 		}
 		out << std::endl;
 		out << "bank : minerals = " << minerals << "("<< getMineralsPerSecond() <<"/s)" << " vespene = " << vespene << "(" << getVespenePerSecond() << "/s)"<< " supply : " << getAvailableSupply() << ":" << getUsedSupply() << "/" << getMaxSupply() <<  std::endl;
+	}
+	int GameState::countUnit(UnitId unit) const
+	{
+		return std::count_if(units.begin(), units.end(), [unit](auto & u) {return u.type == unit ; });
 	}
 	UnitInstance::UnitInstance(UnitId type)
 		: type(type), state(FREE), time_to_free(0) 
