@@ -35,10 +35,11 @@ namespace suboo {
 				auto target = bi.getTarget();
 				auto & unit = tech.getUnitById(target);
 
-				// unit prereq
+				// unit prereq				
+				std::vector<UnitId> pre;
 				for (UnitId prereq = unit.prereq; (int)prereq != 0; prereq = tech.getUnitById(prereq).prereq) {
 					if (!state.hasUnit(prereq)) {
-						bopre.addItemFront(prereq);
+						pre.push_back(prereq);
 						state.addUnit(prereq);
 						seen.insert(prereq);
 					}
@@ -49,13 +50,39 @@ namespace suboo {
 						break;
 					}
 					if (!state.hasUnit(prereq)) {
-						bopre.addItemFront(prereq);
+						pre.push_back(prereq);
 						state.addUnit(prereq);
 						seen.insert(prereq);
 					}
 				}
+				// food
+				auto soup = state.getAvailableSupply();
+				if (unit.food_provided < 0 &&  soup < -unit.food_provided) {
+					pre.push_back(UnitId::PROTOSS_PYLON);
+					state.addUnit(UnitId::PROTOSS_PYLON);
+				}
+				// vespene
+				if (unit.vespene_cost > 0 && !state.hasUnit(UnitId::PROTOSS_ASSIMILATOR)) {					
+					
+					pre.push_back(UnitId::PROTOSS_ASSIMILATOR);
+					state.addUnit(UnitId::PROTOSS_ASSIMILATOR);
+				}
+
+				if (unit.food_provided < 0 && soup < -unit.food_provided) {
+					pre.push_back(UnitId::PROTOSS_PYLON);
+					state.addUnit(UnitId::PROTOSS_PYLON);
+				}
 
 
+				std::reverse(pre.begin(), pre.end());
+				for (auto & id : pre) {
+					bopre.addItem(id);
+					if (id == UnitId::PROTOSS_ASSIMILATOR) {
+						for (int i = 0; i < 3; i++) {
+							bopre.addItem(BuildAction::TRANSFER_VESPENE);
+						}
+					}
+				}
 				bopre.addItem(target);
 				state.addUnit(target);
 			}
@@ -95,21 +122,46 @@ namespace suboo {
 		auto & tech = TechTree::getTechTree();
 		BuildOrder bo = makeBOFromGoal();
 		bo = enforcePrereq(bo);
-		bo = addPower(bo);
+		//bo = addPower(bo);
 		// at this point BO should be doable.
 		// simulate it for timing
 		auto gs = tech.getInitial();
 		for (auto & bi : bo.getItems()) {
-			auto & u = tech.getUnitById(bi.getTarget());
-			std::cout << "On bi :"; bi.print(std::cout);
-			std::cout << std::endl;			
-			gs.waitForResources(u.mineral_cost, u.vespene_cost);
-			if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
-				gs.waitforUnitCompletion(u.prereq);
+			std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
+			if (bi.getAction() == BUILD) {
+				auto & u = tech.getUnitById(bi.getTarget());												
+				if (!gs.waitForResources(u.mineral_cost, u.vespene_cost)) {
+					std::cout << "Insufficient resources collection in state \n";
+					gs.print(std::cout);
+					break;
+				}
+				if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
+					if (!gs.waitforUnitCompletion(u.prereq)) {
+						std::cout << "Insufficient requirements in state \n";
+						gs.print(std::cout);
+					}
+				}
+				gs.getMinerals() -= u.mineral_cost;
+				gs.getVespene() -= u.vespene_cost;
+				gs.addUnit(UnitInstance(u.type, UnitInstance::BUILDING, TechTree::getTechTree().getUnitById(u.type).production_time));
 			}
-			gs.getMinerals() -= u.mineral_cost;
-			gs.getVespene() -= u.vespene_cost;
-			gs.addUnit(UnitInstance(u.type,UnitInstance::BUILDING, TechTree::getTechTree().getUnitById(u.type).production_time));
+			else if (bi.getAction() == TRANSFER_MINERALS) {
+
+			}
+			else if (bi.getAction() == TRANSFER_VESPENE) {
+				auto prereq = UnitId::PROTOSS_ASSIMILATOR;
+				if (!gs.hasUnit(prereq)) {
+					if (!gs.waitforUnitCompletion(prereq)) {
+						std::cout << "No assimilator in state \n";
+						gs.print(std::cout);
+					}
+				}
+				if (!gs.assignProbe(UnitInstance::MINING_VESPENE)) {
+					std::cout << "No probe available for mining \n";
+					gs.print(std::cout);
+				}				
+			}
+			bi.setTime(gs.getTimeStamp());
 		}
 		bo.getFinal() = gs;
 		return bo;
