@@ -185,6 +185,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BOBuilder.cpp" />
+    <ClCompile Include="Boo.cpp" />
     <ClCompile Include="BuildOrder.cpp" />
     <ClCompile Include="DistUtil.cpp" />
     <ClCompile Include="HarvesterStrategy.cpp" />
@@ -200,6 +201,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BOBuilder.h" />
+    <ClInclude Include="Boo.h" />
     <ClInclude Include="DistUtil.h" />
     <ClInclude Include="HarvesterStrategy.h" />
     <ClInclude Include="AStar.h" />
