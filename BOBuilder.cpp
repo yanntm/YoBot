@@ -2,6 +2,7 @@
 #include "UnitTypes.h"
 #include <unordered_set>
 #include <iostream>
+#include "boo.h"
 
 namespace suboo {
 
@@ -118,27 +119,56 @@ namespace suboo {
 	}
 
 	BuildOrder BOBuilder::computeBO()
-	{
-		auto & tech = TechTree::getTechTree();
+	{		
 		BuildOrder bo = makeBOFromGoal();
 		bo = enforcePrereq(bo);
+		timeBO(bo);
+		return bo;
+	}
+
+	BuildOrder BOBuilder::improveBO(const BuildOrder & bo)
+	{
+		std::vector<pboo> optimizers;
+		optimizers.emplace_back(new LeftShifter());
+		optimizers.emplace_back(new AddVespeneGatherer());
+		optimizers.emplace_back(new AddMineralGatherer());
+		BuildOrder best = bo;
+		int gain = 0;
+		do {
+			gain = 0;
+			for (auto & p : optimizers) {
+				auto res = p->improve(best);
+				if (res.first > 0) {
+					gain += res.first;
+					best = res.second;
+					std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
+				}
+			}
+		} while (gain > 0);
+
+		return best;
+	}
+
+	bool timeBO(BuildOrder & bo) {
+		auto & tech = TechTree::getTechTree();
 		//bo = addPower(bo);
 		// at this point BO should be doable.
 		// simulate it for timing
 		auto gs = tech.getInitial();
 		for (auto & bi : bo.getItems()) {
-			std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
+			// std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
 			if (bi.getAction() == BUILD) {
 				auto & u = tech.getUnitById(bi.getTarget());												
 				if (!gs.waitForResources(u.mineral_cost, u.vespene_cost)) {
 					std::cout << "Insufficient resources collection in state \n";
 					gs.print(std::cout);
-					break;
+					return false;
 				}
 				if ((int)u.prereq != 0 && !gs.hasUnit(u.prereq)) {
 					if (!gs.waitforUnitCompletion(u.prereq)) {
-						std::cout << "Insufficient requirements in state \n";
+						std::cout << "Insufficient requirements missing :" << tech.getUnitById(u.prereq).name << std::endl;
 						gs.print(std::cout);
+						return false;
 					}
 				}
 				gs.getMinerals() -= u.mineral_cost;
@@ -154,17 +184,19 @@ namespace suboo {
 					if (!gs.waitforUnitCompletion(prereq)) {
 						std::cout << "No assimilator in state \n";
 						gs.print(std::cout);
+						return false;
 					}
 				}
 				if (!gs.assignProbe(UnitInstance::MINING_VESPENE)) {
 					std::cout << "No probe available for mining \n";
 					gs.print(std::cout);
+					return false;
 				}				
 			}
 			bi.setTime(gs.getTimeStamp());
 		}
 		bo.getFinal() = gs;
-		return bo;
+		return true;
 	}
 
 }
