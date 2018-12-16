@@ -1,4 +1,5 @@
 #include "BuildOrder.h"
+#include "UnitTypes.h"
 #include <iostream>
 #include <mutex>
 
@@ -60,6 +61,10 @@ namespace suboo {
 	{		
 		items.emplace_back(BuildItem(tocreate));
 	}
+	void BuildOrder::addItem(BuildAction action)
+	{
+		items.emplace_back(BuildItem(action));
+	}
 	void BuildOrder::addItemFront(UnitId tocreate)
 	{
 		items.push_front(BuildItem(tocreate));
@@ -67,7 +72,18 @@ namespace suboo {
 	void BuildItem::print(std::ostream & out) const
 	{
 		auto & tech = TechTree::getTechTree();
-		out << "Build " << tech.getUnitById(target).name;
+		if (action == BUILD) {
+			out << "Build " << tech.getUnitById(target).name;
+		}
+		else if (action == TRANSFER_VESPENE) {
+			out << "Transfer To Vespene" ;
+		}
+		else if (action == TRANSFER_MINERALS) {
+			out << "Transfer To Minerals";
+		}
+		if (time != 0) {
+			out << "'" << time;
+		}
 	}
 	bool GameState::hasUnit(UnitId unit) const
 	{
@@ -88,7 +104,7 @@ namespace suboo {
 		if (mps == -1.0) {
 			mps = 0;
 			for (auto & u : units) {
-				if (u.type == UnitId::PROTOSS_PROBE) {
+				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_MINERALS) {
 					mps += 0.625; // arbitrary
 				}
 			}
@@ -107,18 +123,66 @@ namespace suboo {
 		}
 		return vps;
 	}
+	int GameState::getAvailableSupply() const
+	{
+		auto & tech = TechTree::getTechTree();
+		int sum = 0;
+		for (auto & u : units) {
+			auto & unit = tech.getUnitById(u.type);
+			if (unit.food_provided < 0) {
+				sum += unit.food_provided;
+			}
+			else {
+				if (u.state != u.BUILDING) {
+					sum += unit.food_provided;
+				}
+			}
+		}
+
+		return sum;
+	}
+	int GameState::getUsedSupply() const
+	{
+		auto & tech = TechTree::getTechTree();
+		int sum = 0;
+		for (auto & u : units) {
+			auto & unit = tech.getUnitById(u.type);
+			if (unit.food_provided < 0) {
+				sum -= unit.food_provided;
+			}
+		}
+
+		return sum;
+	}
+	int GameState::getMaxSupply() const
+	{
+		auto & tech = TechTree::getTechTree();
+		int sum = 0;
+		for (auto & u : units) {
+			auto & unit = tech.getUnitById(u.type);
+			if (unit.food_provided > 0 && u.state != u.BUILDING) {
+				sum += unit.food_provided;
+			}
+		}
+
+		return sum;
+	}
 	void GameState::stepForward(int secs)
 	{
 		for (int i = 0; i < secs; i++) {
-			mps = -1;
-			vps = -1;
+			bool changed = false;
 			for (auto & u : units) {
 				if (u.time_to_free > 0) {
 					u.time_to_free--;
 					if (u.time_to_free == 0) {
 						u.state = u.FREE;
+						changed = true;
 					}
 				}
+			}
+			if (changed) {
+				mps = -1;
+				vps = -1;
 			}
 			minerals += getMineralsPerSecond() ;
 			vespene += getVespenePerSecond() ;
@@ -130,16 +194,19 @@ namespace suboo {
 	{
 		if (mins > minerals && getMineralsPerSecond() > 0) {
 			int secs = (mins - minerals) / mps;
+			if ( ((mins - minerals) / mps) - secs > 0) {
+				secs += 1;
+			}
 			stepForward(secs);
 			std::cout << "Waited for minerals for " << secs << "s." << std::endl;
 		}
-		else {
-			return false;
+		else if (mins > minerals) {
+				return false;			
 		}
 		if (vesp > vespene && getVespenePerSecond() > 0) {
 			stepForward((vesp - vespene) / vps);
 		}
-		else {
+		else if (vesp > vespene) {
 			return false;
 		}
 		return true;
@@ -156,6 +223,30 @@ namespace suboo {
 			return true;
 		}
 	}
+	bool GameState::assignProbe(UnitInstance::UnitState state)
+	{
+		bool done = false;
+		for (auto & u : units) {
+			if (sc2util::IsWorkerType(u.type) && u.state == u.FREE) {
+				u.state = UnitInstance::MINING_VESPENE;
+				vps = -1;
+				done = true;
+				break;
+			}
+		}
+		if (!done) {
+			for (auto & u : units) {
+				if (sc2util::IsWorkerType(u.type) && u.state == u.MINING_MINERALS) {
+					u.state = UnitInstance::MINING_VESPENE;
+					vps = -1;
+					mps = -1;
+					done = true;
+					break;
+				}
+			}
+		}
+		return done;
+	}
 	void GameState::print(std::ostream & out) const
 	{
 		auto & tech = TechTree::getTechTree();
@@ -164,7 +255,7 @@ namespace suboo {
 			out << ",";
 		}
 		out << std::endl;
-		out << "bank : minerals = " << minerals << " vespene = " << vespene << std::endl;
+		out << "bank : minerals = " << minerals << "("<< getMineralsPerSecond() <<"/s)" << " vespene = " << vespene << "(" << getVespenePerSecond() << "/s)"<< " supply : " << getAvailableSupply() << ":" << getUsedSupply() << "/" << getMaxSupply() <<  std::endl;
 	}
 	UnitInstance::UnitInstance(UnitId type)
 		: type(type), state(FREE), time_to_free(0) 
