@@ -85,7 +85,13 @@ void suboo::TechBot::OnStep()
 		out << "TechTree::TechTree() :\n";
 		out << "	initial({";
 		for (auto & u : initial.getUnits()) {
-			out << " UnitInstance( (UnitId)" << (int) u.type << "),\n";
+			if (sc2util::IsWorkerType(u.type)) {
+				out << " UnitInstance( (UnitId)" << (int)u.type << ", UnitInstance::MINING_MINERALS, 0),\n";
+			}
+			else {
+				// CC, larva
+				out << " UnitInstance( (UnitId)" << (int)u.type << "),\n";
+			}
 		}
 		out << "	}) {\n";
 		out << "  units = {\n";
@@ -120,7 +126,7 @@ void suboo::TechBot::OnStep()
 							"	" << unitdesc.food_provided - unitdesc.food_required << ",  // food" << std::endl <<
 							"	(UnitId)" << (int)builderid << ",  // builder unit  " << std::endl <<
 							"	(UnitId)" << (int)unitdesc.tech_requirement << ",  // tech requirement  " << std::endl <<
-							"	" << unitdesc.build_time << ", // build time" << std::endl <<
+							"	" << (int) ( (float) unitdesc.build_time / 22.4) << ", // build time" << std::endl << // 22.4 frames per game second
 							"	" << traveltime << ",   // travel time" << std::endl <<
 							"	Unit::TRAVEL  // probe behavior" << std::endl <<
 							"}," << std::endl;
@@ -145,7 +151,7 @@ void suboo::TechBot::OnStep()
 							"	" << unitdesc.food_provided - unitdesc.food_required << ",  // food" << std::endl <<
 							"	(UnitId)" << (int)builderid << ",  // builder unit  " << std::endl <<
 							"	(UnitId)" << (int)unitdesc.tech_requirement << ", // tech requirement " << std::endl <<
-							"	" << unitdesc.build_time << ", // build time" << std::endl <<
+							"	" << (int)((float)unitdesc.build_time / 22.4) << ", // build time" << std::endl << // 22.4 frames per game second
 							"	" << 0 << ",   // travel time" << std::endl <<
 							"	Unit::BUSY  // producer behavior" << std::endl <<
 							"}," << std::endl;
