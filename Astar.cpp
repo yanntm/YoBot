@@ -139,6 +139,7 @@ bool astar(
 	nodes_to_visit.push(start_node);
 
 	int* nbrs = new int[8];
+	auto sqrt2 = sqrt(2);
 
 	bool solution_found = false;
 	while (!nodes_to_visit.empty()) {
@@ -165,13 +166,14 @@ bool astar(
 		nbrs[7] = (col > 0) ? cur.idx - 1 : -1;
 
 		float heuristic_cost;
+		
 		for (int i = 0; i < 8; ++i) {
 			if (nbrs[i] >= 0) {
 				// the sum of the cost so far and the cost of this move
 				auto wei = weights[nbrs[i]];
 				// diagonal moves cost more
 				if (i %2 == 0) {
-					wei *= sqrt(2);
+					wei *= sqrt2;
 					if (weights[nbrs[(i + 1) % 8]] > 1000 && weights[nbrs[(i + 7) % 8]] > 1000) {
 						wei = 1000;
 					}
