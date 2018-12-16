@@ -2,19 +2,19 @@
 #include "BuildOrder.h"
 namespace suboo {
 TechTree::TechTree() :
-	initial({ UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
+	initial({ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)59),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
- UnitInstance( (UnitId)84),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
 	}) {
   units = {
 {	0, // index
@@ -25,7 +25,7 @@ TechTree::TechTree() :
 	-6,  // food
 	(UnitId)71,  // builder unit  
 	(UnitId)70, // tech requirement 
-	1200, // build time
+	53, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -37,7 +37,7 @@ TechTree::TechTree() :
 	-8,  // food
 	(UnitId)59,  // builder unit  
 	(UnitId)0, // tech requirement 
-	2560, // build time
+	114, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -49,7 +49,7 @@ TechTree::TechTree() :
 	15,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)0,  // tech requirement  
-	1600, // build time
+	71, // build time
 	10,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -61,7 +61,7 @@ TechTree::TechTree() :
 	8,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)0,  // tech requirement  
-	400, // build time
+	17, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -73,7 +73,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)0,  // tech requirement  
-	480, // build time
+	21, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -85,7 +85,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)59,  // tech requirement  
-	1040, // build time
+	46, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -97,7 +97,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)59,  // tech requirement  
-	720, // build time
+	32, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -109,7 +109,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)67,  // tech requirement  
-	960, // build time
+	42, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -121,7 +121,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)72,  // tech requirement  
-	800, // build time
+	35, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -133,7 +133,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)63,  // tech requirement  
-	640, // build time
+	28, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -145,7 +145,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)72,  // tech requirement  
-	960, // build time
+	42, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -157,7 +157,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)65,  // tech requirement  
-	800, // build time
+	35, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -169,7 +169,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)65,  // tech requirement  
-	1600, // build time
+	71, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -181,7 +181,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)71,  // tech requirement  
-	1040, // build time
+	46, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -193,7 +193,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)72,  // tech requirement  
-	1040, // build time
+	46, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -205,7 +205,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)62,  // tech requirement  
-	800, // build time
+	35, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -217,7 +217,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)0, // tech requirement 
-	608, // build time
+	27, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -229,7 +229,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)72, // tech requirement 
-	672, // build time
+	30, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -241,7 +241,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)68, // tech requirement 
-	880, // build time
+	39, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -253,7 +253,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)69, // tech requirement 
-	880, // build time
+	39, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -265,7 +265,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)72, // tech requirement 
-	592, // build time
+	26, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -277,7 +277,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)67,  // builder unit  
 	(UnitId)0, // tech requirement 
-	560, // build time
+	25, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -289,7 +289,7 @@ TechTree::TechTree() :
 	-6,  // food
 	(UnitId)67,  // builder unit  
 	(UnitId)64, // tech requirement 
-	1440, // build time
+	64, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -301,7 +301,7 @@ TechTree::TechTree() :
 	-4,  // food
 	(UnitId)67,  // builder unit  
 	(UnitId)0, // tech requirement 
-	960, // build time
+	42, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -313,7 +313,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)71,  // builder unit  
 	(UnitId)0, // tech requirement 
-	800, // build time
+	35, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -325,7 +325,7 @@ TechTree::TechTree() :
 	-1,  // food
 	(UnitId)71,  // builder unit  
 	(UnitId)0, // tech requirement 
-	480, // build time
+	21, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -337,7 +337,7 @@ TechTree::TechTree() :
 	-4,  // food
 	(UnitId)71,  // builder unit  
 	(UnitId)0, // tech requirement 
-	880, // build time
+	39, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -349,7 +349,7 @@ TechTree::TechTree() :
 	-1,  // food
 	(UnitId)59,  // builder unit  
 	(UnitId)0, // tech requirement 
-	272, // build time
+	12, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -361,7 +361,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)0,  // tech requirement  
-	160, // build time
+	7, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -373,7 +373,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)81,  // builder unit  
 	(UnitId)0, // tech requirement 
-	24, // build time
+	1, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -385,7 +385,7 @@ TechTree::TechTree() :
 	-2,  // food
 	(UnitId)62,  // builder unit  
 	(UnitId)72, // tech requirement 
-	608, // build time
+	27, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -397,7 +397,7 @@ TechTree::TechTree() :
 	-3,  // food
 	(UnitId)67,  // builder unit  
 	(UnitId)0, // tech requirement 
-	832, // build time
+	37, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -409,7 +409,7 @@ TechTree::TechTree() :
 	-5,  // food
 	(UnitId)67,  // builder unit  
 	(UnitId)64, // tech requirement 
-	960, // build time
+	42, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -421,7 +421,7 @@ TechTree::TechTree() :
 	-3,  // food
 	(UnitId)71,  // builder unit  
 	(UnitId)70, // tech requirement 
-	800, // build time
+	35, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -433,7 +433,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)495,  // builder unit  
 	(UnitId)0, // tech requirement 
-	80, // build time
+	3, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
@@ -445,7 +445,7 @@ TechTree::TechTree() :
 	0,  // food
 	(UnitId)84,  // builder unit  
 	(UnitId)72,  // tech requirement  
-	640, // build time
+	28, // build time
 	4,   // travel time
 	Unit::TRAVEL  // probe behavior
 },
@@ -457,7 +457,7 @@ TechTree::TechTree() :
 	-1,  // food
 	(UnitId)82,  // builder unit  
 	(UnitId)0, // tech requirement 
-	12, // build time
+	0, // build time
 	0,   // travel time
 	Unit::BUSY  // producer behavior
 },
