@@ -69,6 +69,9 @@ namespace suboo {
 						sstr << ")" ;
 						bo.swapItems(i, j);
 
+						if (!BOBuilder::enforcePrereqBySwap(bo)) {
+							std::cout << "problem with swap prereq rule " << std::endl;
+						}
 						candidates.emplace_back(bo);
 						candindexes.emplace_back(sstr.str());
 					}
@@ -96,9 +99,7 @@ namespace suboo {
 		int ass = base.getFinal().countUnit(UnitId::PROTOSS_ASSIMILATOR);
 		if (base.getFinal().getVespene() < 20 && 2 *nexi > ass) {
 			BuildOrder candidate = base;
-			for (int i = 0; i < 3; i++) {
-				candidate.addItemFront(TRANSFER_VESPENE);
-			}
+			candidate.addItemFront(TRANSFER_VESPENE);			
 			candidate.addItemFront(UnitId::PROTOSS_ASSIMILATOR);
 			if (timeBO(candidate)) {
 				int delta =  base.getFinal().getTimeStamp() - candidate.getFinal().getTimeStamp() ;
@@ -138,6 +139,9 @@ namespace suboo {
 						else {
 							candidate.insertItem(UnitId::PROTOSS_PYLON, i - 3);
 						}
+					}
+					if (!BOBuilder::enforcePrereqBySwap(candidate)) {
+						std::cout << "problem with swap prereq rule " << std::endl;
 					}
 					candidates.emplace_back(candidate);
 					candnames.emplace_back("Add Probe at index " + std::to_string(i));
@@ -185,12 +189,14 @@ namespace suboo {
 				auto & builder = tech.getUnitById(pair.first);
 				// try to stutter
 				int index = 0;
+				bool ok = false;
 				for (auto & bi : base.getItems()) {
-					if (bi.getAction() == BUILD && bi.getTarget() == pair.first) {
+					if (ok || bi.getAction() == BUILD && bi.getTarget() == pair.first) {
 						auto candidate = base;
 						candidate.insertItem(pair.first, index);
 						candidates.emplace_back(candidate);
 						candnames.push_back("Add production " + builder.name + " at step " + std::to_string(index));
+						ok = true;
 					}
 					index++;
 				}
