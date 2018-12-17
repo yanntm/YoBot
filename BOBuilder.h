@@ -10,6 +10,7 @@ namespace suboo {
 		
 	public:
 		void addGoal(const BuildGoal & goal) { goals.emplace_back(goal); }
+		static bool enforcePrereqBySwap(BuildOrder & bo);
 		static BuildOrder enforcePrereq(const BuildOrder & bo);
 		BuildOrder computeBO();	
 		BuildOrder improveBO(const BuildOrder & bo);
