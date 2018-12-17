@@ -49,6 +49,48 @@ namespace suboo {
 		state.addUnit(unit.type);
 		seen.insert(unit.type);
 	}
+	bool BOBuilder::enforcePrereqBySwap(BuildOrder & bo) {
+		auto & tech = TechTree::getTechTree();
+		// enforce prerequisites
+		GameState state = tech.getInitial();
+		BuildOrder bopre;
+		std::unordered_set<UnitId> seen;
+		for (auto & u : state.getUnits()) {
+			seen.insert(u.type);
+		}
+		
+		for (int i = 0; i < bo.getItems().size() && i >= 0; i++) {
+			auto & bi = bo.getItems()[i];
+			if (bi.getAction() == BUILD) {
+				auto target = bi.getTarget();
+				auto & unit = tech.getUnitById(target);
+				// unit prereq				
+				std::vector<UnitId> pre;
+				addPreReq(pre, state, seen, unit.type, tech);
+
+				for (auto & id : pre) {
+					int j,e;
+					for (j = i, e = bo.getItems().size(); j < e; j++) {
+						if (bo.getItems()[j] == BuildItem(id)) {
+							bo.removeItem(j);
+							if (i == j) {
+								i--;
+							}
+							break;
+						}
+					}
+					if (j == e) {
+						return false;
+					}
+					bopre.addItem(id);
+				}
+			}
+			else {
+				bopre.addItem(bi.getAction());
+			}			
+		}
+		bo = bopre;
+	}
 
 	BuildOrder BOBuilder::enforcePrereq(const BuildOrder & bo) {
 		auto & tech = TechTree::getTechTree();
@@ -129,25 +171,40 @@ namespace suboo {
 		for (auto & bi : bo.getItems()) {
 			// std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
 			if (bi.getAction() == BUILD) {
-				auto & u = tech.getUnitById(bi.getTarget());												
-				if (!gs.waitForResources(u.mineral_cost, u.vespene_cost)) {
+				auto & u = tech.getUnitById(bi.getTarget());
+				std::pair<int, int> waited;
+				if (!gs.waitForResources(u.mineral_cost, u.vespene_cost, & waited)) {
 					std::cout << "Insufficient resources collection in state \n";
 					gs.print(std::cout);
 					return false;
 				}
+#ifdef DEBUG
+				else {
+					bi.timeMin = waited.first; 
+					bi.timeVesp = waited.second;
+				}
+#endif
 				if ((int)u.prereq != 0 && !gs.hasFinishedUnit(u.prereq)) {
+					int cur = gs.getTimeStamp();
 					if (!gs.waitforUnitCompletion(u.prereq)) {
 						std::cout << "Insufficient requirements missing tech req :" << tech.getUnitById(u.prereq).name << std::endl;
 						gs.print(std::cout);
 						return false;
 					}
+#ifdef DEBUG
+					bi.timePre = gs.getTimeStamp() - cur;
+#endif
 				}
 				if ((int)u.builder != 0 && !gs.hasFreeUnit(u.prereq)) {
+					int cur = gs.getTimeStamp();
 					if (!gs.waitforUnitFree(u.builder)) {
 						std::cout << "Insufficient requirements missing builder :" << tech.getUnitById(u.builder).name << std::endl;
 						gs.print(std::cout);
 						return false;
 					}
+#ifdef DEBUG
+					bi.timeFree = gs.getTimeStamp() - cur;
+#endif
 					if (u.effect == u.TRAVEL) {
 						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.travel_time);
 					}
@@ -156,11 +213,15 @@ namespace suboo {
 					}
 				}
 				if (u.food_provided < 0 && gs.getAvailableSupply() < -u.food_provided) {
+					int cur = gs.getTimeStamp();					
 					if (!gs.waitforFreeSupply(-u.food_provided)) {
 						//std::cout << "Insufficient food missing pylons." << std::endl;
 						//gs.print(std::cout);
 						return false;
 					}
+#ifdef DEBUG
+					bi.timeFood = gs.getTimeStamp() - cur;
+#endif
 				}
 				gs.getMinerals() -= u.mineral_cost;
 				gs.getVespene() -= u.vespene_cost;
