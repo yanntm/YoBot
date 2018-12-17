@@ -72,6 +72,14 @@ namespace suboo {
 		if (time != 0) {
 			out << "'" << time;
 		}
+#ifdef DEBUG
+		out << " waited : ";
+		if (timeMin > 0) out << " min: " << timeMin;
+		if (timeVesp > 0) out << " vesp: " << timeVesp;
+		if (timePre > 0) out << " pre: " << timePre;
+		if (timeFree > 0) out << " free: " << timeFree; 
+		if (timeFood > 0) out << " food: " << timeFood;		
+#endif
 	}
 	bool GameState::hasFreeUnit(UnitId unit) const
 	{
@@ -194,7 +202,7 @@ namespace suboo {
 		}
 		
 	}
-	bool GameState::waitForResources(int mins, int vesp)
+	bool GameState::waitForResources(int mins, int vesp, std::pair<int,int> * waited)
 	{
 		if (mins > minerals && getMineralsPerSecond() > 0) {
 			int secs = (mins - minerals) / mps;
@@ -202,6 +210,9 @@ namespace suboo {
 				secs += 1;
 			}
 			stepForward(secs);
+			if (waited != nullptr) {
+				waited->first = secs;
+			}
 			// std::cout << "Waited for minerals for " << secs << "s." << std::endl;
 		}
 		else if (mins > minerals) {
@@ -213,6 +224,9 @@ namespace suboo {
 				secs += 1;
 			}
 			stepForward(secs);
+			if (waited != nullptr) {
+				waited->second = secs;
+			}
 			// std::cout << "Waited for vespene for " << secs << "s." << std::endl;
 		}
 		else if (vesp > vespene) {
@@ -281,7 +295,7 @@ namespace suboo {
 			return false;
 		}
 		else {
-			// std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " to be provide food for " << units[best].time_to_free << "s." << std::endl;
+			std::cout << "Waited for " << TechTree::getTechTree().getUnitById(units[best].type).name << " to be provide food for " << units[best].time_to_free << "s." << std::endl;
 			stepForward(units[best].time_to_free);
 			return true;
 		}
