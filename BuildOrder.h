@@ -84,7 +84,7 @@ namespace suboo {
 		int getUsedSupply() const;
 		int getMaxSupply() const;
 		void stepForward(int secs);
-		bool waitForResources(int mins, int vesp);
+		bool waitForResources(int mins, int vesp, std::pair<int,int> * waited = nullptr);
 		bool waitforUnitCompletion(UnitId id);
 		bool waitforUnitFree(UnitId id);
 		bool waitforFreeSupply(int needed);
@@ -124,6 +124,9 @@ namespace suboo {
 		UnitId target;
 		int time;
 	public :		
+#ifdef DEBUG
+		int timeMin=0, timeVesp=0, timePre=0, timeFree=0, timeFood=0;
+#endif
 		// compute time to completion, from a given game state, assuming that the action is possible
 		// make sure this is the case, since this just steps simulation forward
 		// updates the game state
@@ -168,6 +171,7 @@ namespace suboo {
 		std::deque<BuildItem> & getItems() { return items; }
 		GameState & getFinal() { return final; }
 		const GameState & getFinal() const { return final; }
+		void removeItem(int i) { items.erase(items.begin() + i); }
 		void swapItems(int i, int j) { std::swap(items[i], items[j]); }
 	};
 
