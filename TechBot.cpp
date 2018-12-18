@@ -37,6 +37,8 @@ void suboo::TechBot::OnGameStart()
 	Debug()->DebugGiveAllResources();
 	Debug()->DebugGiveAllTech();
 	Debug()->DebugGiveAllUpgrades();
+	initmin = Observation()->GetMinerals();
+	initvesp = Observation()->GetVespene();
 	auto point = map.getPosition(map.ally,map.main);
 	for (const sc2::UnitTypeData & unitdesc : types) {
 		if (isRelevant(unitdesc)) {
@@ -94,6 +96,8 @@ void suboo::TechBot::OnStep()
 			}
 		}
 		out << "	}) {\n";
+		out << "  initial.getMinerals() = " << initmin << ";\n";
+		out << "  initial.getVespene() = " << initvesp << ";\n";
 		out << "  units = {\n";
 
 		// reindex units
