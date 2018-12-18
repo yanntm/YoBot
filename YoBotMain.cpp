@@ -6,7 +6,7 @@
 #include "LadderInterface.h"
 
 //#define _GENTECHTREE 1
-#define _BOSEARCH 1
+//#define _BOSEARCH 1
 
 #ifdef DEBUG
 #ifdef _GENTECHTREE 
@@ -74,9 +74,15 @@ int main(int argc, char* argv[])
 	BOBuilder builder;
 	   
 	BuildGoal goal(0); // ASAP
-	goal.addUnit(UnitId::PROTOSS_CARRIER, 1);
 	goal.addUnit(UnitId::PROTOSS_IMMORTAL, 1);
-	goal.addUnit(UnitId::PROTOSS_DISRUPTOR, 1);
+	//goal.addUnit(UnitId::PROTOSS_DISRUPTOR, 1);
+	goal.addUnit(UnitId::PROTOSS_CARRIER, 2);
+	//goal.addUnit(UnitId::PROTOSS_GATEWAY, 3);
+	//goal.addUnit(UnitId::PROTOSS_STARGATE, 3);
+	goal.addUnit(UnitId::PROTOSS_OBSERVER, 1);
+	goal.addUnit(UnitId::PROTOSS_PHOENIX, 3);
+	goal.addUnit(UnitId::PROTOSS_ZEALOT, 15);
+	
 	builder.addGoal(goal);
 	goal.print(std::cout);
 
@@ -120,7 +126,7 @@ int main(int argc, char* argv[])
 	coordinator.SetParticipants({
 		/*CreateParticipant(sc2::Race::Zerg, &h),*/ CreateParticipant(sc2::Race::Protoss, &bot)//,CreateParticipant(sc2::Race::Protoss, &bot2)
 		//sc2::PlayerSetup(sc2::PlayerType::Observer,Util::GetRaceFromString(enemyRaceString)),
-		,CreateComputer(sc2::Race::Protoss, sc2::Difficulty::CheatInsane)
+		,CreateComputer(sc2::Race::Random, sc2::Difficulty::VeryHard)
 		
 	});
 	// Start the game.
