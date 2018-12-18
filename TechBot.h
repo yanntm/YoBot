@@ -8,6 +8,8 @@ namespace suboo {
 	class TechBot : public sc2::Agent {
 		std::string version;
 		GameState initial;
+		int initmin;
+		int initvesp;
 	public :
 		TechBot(const std::string & version) :version(version) {}
 		void OnGameStart();
