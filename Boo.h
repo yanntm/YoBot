@@ -24,6 +24,15 @@ namespace suboo {
 		const char* getName() const { return "LeftShifter";  }
 	};
 
+	class Randomizer : public boo {
+		std::pair<int, BuildOrder> improve(const BuildOrder & base);
+		const char* getName() const { return "Randomizer"; }
+	};
+
+	class NoWaitShifter : public boo {
+		std::pair<int, BuildOrder> improve(const BuildOrder & base);
+		const char* getName() const { return "NoWaitShifter"; }
+	};
 
 	// if a build is gas starved, and the number of bases permits it add a assimilator
 	class AddVespeneGatherer : public boo {
@@ -36,12 +45,21 @@ namespace suboo {
 		std::pair<int, BuildOrder> improve(const BuildOrder & base);
 		const char* getName() const { return "AddMineralGatherer"; }
 	};
+	// en masse !
+	class AddMineralGathererStack : public boo {
+		std::pair<int, BuildOrder> improve(const BuildOrder & base);
+		const char* getName() const { return "AddMineralGathererStack"; }
+	};
+
 
 	// if a build is using a builder (building type) many times, and the number of bases permits it add a worker
 	class AddProduction : public boo {
 		std::pair<int, BuildOrder> improve(const BuildOrder & base);
 		const char* getName() const { return "AddProduction"; }
 	};
-
+	class AddProductionForceful : public boo {
+		std::pair<int, BuildOrder> improve(const BuildOrder & base);
+		const char* getName() const { return "AddProductionForceful"; }
+	};
 
 }
