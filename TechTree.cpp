@@ -5,17 +5,19 @@ TechTree::TechTree() :
 	initial({ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
- UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
  UnitInstance( (UnitId)59),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
+ UnitInstance( (UnitId)84, UnitInstance::MINING_MINERALS, 0),
 	}) {
+  initial.getMinerals() = 50;
+  initial.getVespene() = 0;
   units = {
 {	0, // index
 	(UnitId)4,  // ID
