@@ -8,15 +8,30 @@ namespace suboo {
 
 	std::pair<int, BuildOrder> findBest(const BuildOrder & base, std::vector<BuildOrder> & candidates, std::vector<std::string> candDesc) {
 		int best = base.getFinal().getTimeStamp();
+		int bestmin = base.getFinal().getMinerals();
+		int bestwait = 0;
+		for (auto & bi : base.getItems()) {
+			bestwait += bi.totalWait();
+		}
+		int basewait = bestwait;
 		int bestindex = -1;
 		int index = 0;
 		for (auto & bo : candidates) {
 			if (timeBO(bo)) {
 				auto total = bo.getFinal().getTimeStamp();
+				auto bomin = bo.getFinal().getMinerals();
+				int totalwait = 0;
+				for (auto & bi : bo.getItems()) {
+					totalwait += bi.totalWait();
+				}
 				std::cout << candDesc[index] << " feasible in " << total;
-				if (total < best) {
+				if (total < best || (total <= best && (bomin > bestmin || bomin == bestmin && totalwait < bestwait))) {
 					bestindex = index;
-					best = bo.getFinal().getTimeStamp();
+					bestmin = bomin;
+					best = total;
+					bestwait = totalwait;
+					std::cout << " mins=" << bestmin;
+					std::cout << " totalwait=" << totalwait;
 					std::cout << " (new best)";
 				}
 				std::cout << std::endl;
@@ -27,7 +42,31 @@ namespace suboo {
 			index++;
 		}
 
-		return { base.getFinal().getTimeStamp() - best, bestindex == -1 ? BuildOrder() : candidates[bestindex] };
+		auto delta = (base.getFinal().getTimeStamp() - best);
+		auto deltamin = bestmin - base.getFinal().getMinerals();
+		auto deltawait = bestwait - basewait;
+
+		return { delta > 0 ? delta : deltamin > 0 ? deltamin : deltawait, bestindex == -1 ? BuildOrder() : candidates[bestindex] };
+	}
+
+	std::pair<int, BuildOrder> Randomizer::improve(const BuildOrder & base) {
+		BuildOrder best = base;
+		for (int i = 0; i < 1000; i++) {
+			auto copy = best;
+			auto & deq = copy.getItems();
+			std::random_shuffle(deq.begin(), deq.end());
+			BOBuilder::enforcePrereqBySwap(copy);
+			if (timeBO(copy)) {
+				auto timefin = copy.getFinal().getTimeStamp();
+				auto timebest = best.getFinal().getTimeStamp();
+				if (timefin < timebest || timefin == timebest && (best.getFinal().getMinerals() - copy.getFinal().getMinerals()) >0) {
+					best = copy;
+				}
+			}			
+		}
+		auto delta = (base.getFinal().getTimeStamp() - best.getFinal().getTimeStamp());
+		auto deltamin = (base.getFinal().getMinerals() - best.getFinal().getMinerals());
+		return { delta > 0 ? delta : deltamin , best };
 	}
 
 	std::pair<int, BuildOrder> LeftShifter::improve(const BuildOrder & base)
@@ -117,16 +156,14 @@ namespace suboo {
 		std::vector<BuildOrder> candidates;
 		candidates.reserve(base.getItems().size());
 		std::vector<std::string> candnames;
-		int nexi = base.getFinal().countUnit(UnitId::PROTOSS_NEXUS);
-		int ass = base.getFinal().countUnit(UnitId::PROTOSS_ASSIMILATOR);
-		int prob = base.getFinal().countUnit(UnitId::PROTOSS_PROBE);
+		
 		bool needpylon = false;
 		if (base.getFinal().getAvailableSupply() == 0) {
 			needpylon = true;
 		}
 		auto & tech = TechTree::getTechTree();
 		int available = tech.getInitial().getAvailableSupply();
-		if (base.getFinal().getMinerals() < 20 && (20 * nexi + 3*ass) > prob) {
+		if (base.getFinal().getMinerals() < 20 && base.getFinal().probesToSaturation() > 0) {
 			for (int i = 0, e = base.getItems().size(); i < e; i++) {
 				if (available >= 1) {
 					BuildOrder candidate = base;
@@ -205,4 +242,49 @@ namespace suboo {
 		return findBest(base, candidates, candnames);
 	}
 
+	std::pair<int, BuildOrder> NoWaitShifter::improve(const BuildOrder & base)		
+	{
+		auto & tech = TechTree::getTechTree();
+		std::vector<BuildOrder> candidates;
+		std::vector<std::string > candindexes;
+		candidates.reserve(20);
+		// find any event with zero wait : left shift it
+		auto & items = base.getItems();
+		GameState current = tech.getInitial();
+		for (int i = 1, e = items.size(); i < e; i++) {
+			auto & bi = items[i];
+			if (bi.totalWait() == 0) {
+				BuildOrder bo = base;
+				std::stringstream sstr;
+				sstr << "swapping (" << i-1 << " :"; bo.getItems()[i-1].print(sstr);
+				sstr << ") and (" << i << " :"; bo.getItems()[i].print(sstr);
+				sstr << ")";
+				bo.swapItems(i, i-1);
+
+				candidates.emplace_back(bo);
+				candindexes.emplace_back(sstr.str());
+			}
+		}
+		return findBest(base, candidates, candindexes);
+	}
+	std::pair<int, BuildOrder> AddMineralGathererStack::improve(const BuildOrder & base)
+	{
+		auto copy = base;
+		int i = 0, tobuild = base.getFinal().probesToSaturation();
+		if (tobuild == 0) {
+			return { 0, BuildOrder()};
+		}
+		for (; i < tobuild && i < 3; i++) {
+			copy.addItemFront(UnitId::PROTOSS_PROBE);
+		}
+		copy = BOBuilder::enforcePrereq(copy);
+		copy = BOBuilder::improveBO(copy);
+		std::vector<BuildOrder> candidates;
+		candidates.emplace_back(copy);
+		return findBest(base, candidates, {"optimizedSaturation"});
+	}
+	std::pair<int, BuildOrder> AddProductionForceful::improve(const BuildOrder & base)
+	{
+		return std::pair<int, BuildOrder>(0,BuildOrder());
+	}
 }
