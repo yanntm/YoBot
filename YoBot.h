@@ -150,26 +150,25 @@ public:
 			harvesting.initialize(unit, map.resourcesPer[map.FindNearestBaseIndex(unit->pos)], Observation());
 			
 			buildingNexus = false;
-		}
-		
+		} 
 		if (IsBuilding(unit->unit_type)) {
 			for (auto & gw : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || u.unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY; })) {
-				auto direction = proxy - unit->pos;
+				auto direction = proxy - gw->pos;
 				direction /= Distance2D(Point2D(0, 0), direction);
 				// point towards open spot
 				std::vector < Point2D > pos = { {-2,2},{0,2}, {2,2},
 															{-2,0},{0,0}, {2,0},
 															{-2,-2},{0,-2}, {2,-2} };
 				for (auto & p : pos) {
-					p += unit->pos;
+					p += gw->pos;
 				}
 				sortByDistanceTo(pos, proxy);
-				auto center = defensePoint(map.FindNearestBase(unit->pos));
+				auto center = defensePoint(map.FindNearestBase(gw->pos));
 				if (Pathable(Observation()->GetGameInfo(), center)) {
 					for (auto & p : pos) {
 						if (Pathable(Observation()->GetGameInfo(), p)) {
-							if (Query()->PathingDistance(p, center) != 0) {
-								Actions()->UnitCommand(unit, ABILITY_ID::RALLY_BUILDING, p, true);
+							if (Query()->PathingDistance(p, center) != 0) {								
+								Actions()->UnitCommand(gw, ABILITY_ID::RALLY_BUILDING, p);
 								break;
 							}
 						}
@@ -1050,11 +1049,9 @@ public:
 			TryBuildCannons(pylons,harvesters);
 		}
 		// we get undesirable double commands if we do this each frame
-		if (bob != nullptr && !YoActions()->isBusy(bob->tag)) {
-			if (! orderBusy(bob)) {
-				TryBuildSupplyDepot(pylons, evading);
-				TryBuildBarracks(pylons, evading, harvesters);
-			}
+		if (frame % 3 == 0) {
+			TryBuildSupplyDepot(pylons, evading);
+			TryBuildBarracks(pylons, evading, harvesters);			
 		}
 		TryBuildUnits();
 
@@ -1870,12 +1867,12 @@ private:
 			Units gws = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
 			if (gws.size() != 0 || needSupport) {
 				for (auto & gw : gws) {
-					if (gw->build_progress ==  1 && !gw->is_powered && (! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f)) {
+					if (gw->build_progress ==  1 && !gw->is_powered && ((! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f))) {
 						
 						for (int i = 0; i < 30; i++) {
 							rx = GetRandomScalar();
 							ry = GetRandomScalar();
-							auto candidate = Point2D(gw->pos.x + rx * 3.0f, gw->pos.y + ry * 3.0f);
+							auto candidate = Point2D(gw->pos.x + rx * 5.0f, gw->pos.y + ry * 5.0f);
 							if (map.PlacementB(Observation()->GetGameInfo(), candidate,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
 								Actions()->UnitCommand(unit_to_build,
 									ABILITY_ID::MOVE,
@@ -2113,7 +2110,7 @@ private:
 		const Unit * builder;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400) && frame%3 ==0) {
+		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400) ) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			auto it = find(probes.begin(), probes.end(), bob);
 			if (it != probes.end()) {
