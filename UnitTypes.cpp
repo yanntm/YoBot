@@ -171,7 +171,7 @@ namespace sc2util {
 
 	bool isChronoed(const sc2::Unit * gw)
 	{
-		for (auto buff : gw->buffs) {
+		for (auto & buff : gw->buffs) {
 			if (buff == sc2::BUFF_ID::TIMEWARPPRODUCTION) {
 				return true;
 			}
@@ -180,7 +180,7 @@ namespace sc2util {
 	}
 
 	float getRange(const Unit *z, const sc2::UnitTypes & types) {
-		auto arms = types.at(static_cast<uint32_t>(z->unit_type)).weapons;
+		auto & arms = types.at(static_cast<uint32_t>(z->unit_type)).weapons;
 		if (arms.empty()) {
 			return z->radius;
 		}
