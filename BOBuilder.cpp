@@ -44,7 +44,7 @@ namespace suboo {
 		if (unit.vespene_cost > 0 && !state.hasFinishedUnit(UnitId::PROTOSS_ASSIMILATOR)) {
 			pre.push_back(UnitId::PROTOSS_ASSIMILATOR);
 			state.addUnit(UnitId::PROTOSS_ASSIMILATOR);			
-		}
+		}		
 		pre.push_back(unit.type);
 		state.addUnit(unit.type);
 		seen.insert(unit.type);
@@ -83,7 +83,23 @@ namespace suboo {
 						return false;
 					}
 					bopre.addItem(id);
-				}
+					if (id == UnitId::PROTOSS_ASSIMILATOR) {
+						auto bbi = BuildItem(TRANSFER_VESPENE);
+						for (j = std::max(0,i), e = bo.getItems().size(); j < e; j++) {
+							if (bo.getItems()[j] ==bbi) {
+								bo.removeItem(j);
+								if (i == j) {
+									i--;
+								}
+								break;
+							}
+						}
+						if (j == e) {
+							return false;
+						}
+						bopre.addItem(bbi.getAction());
+					}
+				}				
 			}
 			else {
 				bopre.addItem(bi.getAction());
@@ -101,6 +117,7 @@ namespace suboo {
 		for (auto & u : state.getUnits()) {
 			seen.insert(u.type);
 		}
+		int vesp=0;
 		for (auto & bi : bo.getItems()) {
 			if (bi.getAction() == BUILD) {
 				auto target = bi.getTarget();
@@ -114,12 +131,16 @@ namespace suboo {
 					if (id == UnitId::PROTOSS_ASSIMILATOR) {
 						//for (int i = 0; i < 3; i++) {
 							bopre.addItem(BuildAction::TRANSFER_VESPENE);
+							vesp++;
 						//}
 					}
 				}							
 			}
-			else {
-				bopre.addItem(bi.getAction());
+			else {				
+				if (state.countUnit(UnitId::PROTOSS_ASSIMILATOR) >= vesp) {
+					bopre.addItem(bi.getAction());
+					vesp++;
+				}
 			}
 		}
 		return bopre;
@@ -137,27 +158,36 @@ namespace suboo {
 	BuildOrder BOBuilder::improveBO(const BuildOrder & bo)
 	{
 		std::vector<pboo> optimizers;
-		optimizers.emplace_back(new LeftShifter());
+		optimizers.emplace_back(new NoWaitShifter());
 		optimizers.emplace_back(new AddVespeneGatherer());
 		optimizers.emplace_back(new AddMineralGatherer());
+		optimizers.emplace_back(new AddMineralGathererStack());
 		optimizers.emplace_back(new AddProduction());
+		optimizers.emplace_back(new LeftShifter());
+		//
 		BuildOrder best = bo;
 		int gain = 0;
 		do {
 			gain = 0;
 			for (auto & p : optimizers) {
-				auto res = p->improve(best);
-				if (res.first > 0) {
-					gain += res.first;
-					best = res.second;
-					std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
-					best.print(std::cout);
-				}
-				else {
-					std::cout << "No improvement of results using " << p->getName() << ". Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
-				}
+				int optgain = 0;
+				// nested loop mostly does not help, most rules already try many positions it's redundant
+				//do {
+					optgain = 0;
+					auto res = p->improve(best);
+					if (res.first > 0) {
+						gain += res.first;
+						optgain += res.first;
+						best = res.second;
+						std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
+						best.print(std::cout);
+					}
+					else {
+						std::cout << "No improvement of results using " << p->getName() << ". Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
+					}
+				//} while (optgain >0);
 			}
-		} while (gain > 0);
+		} while (gain > 0);		
 
 		return best;
 	}
@@ -169,6 +199,9 @@ namespace suboo {
 		// simulate it for timing
 		auto gs = tech.getInitial();
 		for (auto & bi : bo.getItems()) {
+#ifdef DEBUG
+			bi.clearTimes();
+#endif
 			// std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
 			if (bi.getAction() == BUILD) {
 				auto & u = tech.getUnitById(bi.getTarget());
@@ -231,13 +264,20 @@ namespace suboo {
 
 			}
 			else if (bi.getAction() == TRANSFER_VESPENE) {
+#ifdef DEBUG
+				bi.timeFree = 0;
+#endif	
 				auto prereq = UnitId::PROTOSS_ASSIMILATOR;
 				if (!gs.hasFreeUnit(prereq)) {
+					int cur = gs.getTimeStamp();		
 					if (!gs.waitforUnitCompletion(prereq)) {
 						std::cout << "No assimilator in state \n";
 						gs.print(std::cout);
 						return false;
 					}
+#ifdef DEBUG
+					bi.timeFree = gs.getTimeStamp() - cur;
+#endif					
 				}
 				int gas = 0;
 				int soongas = 0;
@@ -260,11 +300,15 @@ namespace suboo {
 					return false;
 				}
 				if (vcount >= 3 * gas) {
+					int cur = gs.getTimeStamp();
 					if (!gs.waitforUnitCompletion(prereq)) {
 						std::cout << "No assimilator in state \n";
 						gs.print(std::cout);
 						return false;
 					}
+#ifdef DEBUG
+					bi.timeFree += gs.getTimeStamp() - cur;
+#endif	
 				}
 				if (!gs.assignProbe(UnitInstance::MINING_VESPENE)) {
 					std::cout << "No probe available for mining \n";
