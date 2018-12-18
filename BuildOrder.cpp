@@ -81,6 +81,13 @@ namespace suboo {
 		if (timeFood > 0) out << " food: " << timeFood;		
 #endif
 	}
+	int GameState::probesToSaturation() const
+	{
+		int nexi = countUnit(UnitId::PROTOSS_NEXUS);
+		int ass = countUnit(UnitId::PROTOSS_ASSIMILATOR);
+		int prob = countUnit(UnitId::PROTOSS_PROBE);
+		return (20 * nexi + 3 * ass) - prob;
+	}
 	bool GameState::hasFreeUnit(UnitId unit) const
 	{
 		return std::any_of(units.begin(), units.end(), [unit](auto & u) {
@@ -295,7 +302,7 @@ namespace suboo {
 			return false;
 		}
 		else {
-			std::cout << "Waited for " << TechTree::getTechTree().getUnitById(units[best].type).name << " to be provide food for " << units[best].time_to_free << "s." << std::endl;
+			//std::cout << "Waited for " << TechTree::getTechTree().getUnitById(units[best].type).name << " to be provide food for " << units[best].time_to_free << "s." << std::endl;
 			stepForward(units[best].time_to_free);
 			return true;
 		}
