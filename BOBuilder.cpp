@@ -199,9 +199,8 @@ namespace suboo {
 		// simulate it for timing
 		auto gs = tech.getInitial();
 		for (auto & bi : bo.getItems()) {
-#ifdef DEBUG
+
 			bi.clearTimes();
-#endif
 			// std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
 			if (bi.getAction() == BUILD) {
 				auto & u = tech.getUnitById(bi.getTarget());
@@ -211,12 +210,10 @@ namespace suboo {
 					gs.print(std::cout);
 					return false;
 				}
-#ifdef DEBUG
 				else {
 					bi.timeMin = waited.first; 
 					bi.timeVesp = waited.second;
 				}
-#endif
 				if ((int)u.prereq != 0 && !gs.hasFinishedUnit(u.prereq)) {
 					int cur = gs.getTimeStamp();
 					if (!gs.waitforUnitCompletion(u.prereq)) {
@@ -224,9 +221,7 @@ namespace suboo {
 						gs.print(std::cout);
 						return false;
 					}
-#ifdef DEBUG
 					bi.timePre = gs.getTimeStamp() - cur;
-#endif
 				}
 				if ((int)u.builder != 0 && !gs.hasFreeUnit(u.prereq)) {
 					int cur = gs.getTimeStamp();
@@ -235,9 +230,7 @@ namespace suboo {
 						gs.print(std::cout);
 						return false;
 					}
-#ifdef DEBUG
 					bi.timeFree = gs.getTimeStamp() - cur;
-#endif
 					if (u.effect == u.TRAVEL) {
 						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.travel_time);
 					}
@@ -252,9 +245,7 @@ namespace suboo {
 						//gs.print(std::cout);
 						return false;
 					}
-#ifdef DEBUG
 					bi.timeFood = gs.getTimeStamp() - cur;
-#endif
 				}
 				gs.getMinerals() -= u.mineral_cost;
 				gs.getVespene() -= u.vespene_cost;
@@ -264,9 +255,7 @@ namespace suboo {
 
 			}
 			else if (bi.getAction() == TRANSFER_VESPENE) {
-#ifdef DEBUG
 				bi.timeFree = 0;
-#endif	
 				auto prereq = UnitId::PROTOSS_ASSIMILATOR;
 				if (!gs.hasFreeUnit(prereq)) {
 					int cur = gs.getTimeStamp();		
@@ -275,9 +264,7 @@ namespace suboo {
 						gs.print(std::cout);
 						return false;
 					}
-#ifdef DEBUG
 					bi.timeFree = gs.getTimeStamp() - cur;
-#endif					
 				}
 				int gas = 0;
 				int soongas = 0;
@@ -306,9 +293,7 @@ namespace suboo {
 						gs.print(std::cout);
 						return false;
 					}
-#ifdef DEBUG
 					bi.timeFree += gs.getTimeStamp() - cur;
-#endif	
 				}
 				if (!gs.assignProbe(UnitInstance::MINING_VESPENE)) {
 					std::cout << "No probe available for mining \n";

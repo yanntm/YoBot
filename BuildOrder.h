@@ -124,11 +124,9 @@ namespace suboo {
 		UnitId target;
 		int time;
 	public :		
-#ifdef DEBUG
 		int timeMin=0, timeVesp=0, timePre=0, timeFree=0, timeFood=0;
 		int totalWait() const  { return timeMin + timeVesp + timePre + timeFree + timeFood;}
 		void clearTimes() { timeMin =  timeVesp = timePre =  timeFree =  timeFood = 0; }
-#endif
 		// compute time to completion, from a given game state, assuming that the action is possible
 		// make sure this is the case, since this just steps simulation forward
 		// updates the game state
