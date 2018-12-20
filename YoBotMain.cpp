@@ -107,6 +107,7 @@ int main(int argc, char* argv[])
 		bo.addItem(UnitId::PROTOSS_ZEALOT);
 		bo.addItem(UnitId::PROTOSS_PROBE);
 		bo.addItem(UnitId::PROTOSS_ASSIMILATOR);
+		bo.addItem(TRANSFER_VESPENE); 
 		bo.addItem(UnitId::PROTOSS_PYLON);
 		bo.addItem(UnitId::PROTOSS_PROBE);
 		bo.addItem(UnitId::PROTOSS_ZEALOT);
@@ -126,6 +127,7 @@ int main(int argc, char* argv[])
 		bo.addItem(UnitId::PROTOSS_ZEALOT);
 		bo.addItem(UnitId::PROTOSS_PHOENIX);
 		bo.addItem(UnitId::PROTOSS_ASSIMILATOR);
+		bo.addItem(TRANSFER_VESPENE);
 		bo.addItem(UnitId::PROTOSS_ZEALOT);
 		bo.addItem(UnitId::PROTOSS_ZEALOT);
 		bo.addItem(UnitId::PROTOSS_PYLON);
