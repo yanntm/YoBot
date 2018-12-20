@@ -256,6 +256,10 @@ namespace suboo {
 			if (bi == items[i - 1]) {
 				continue;
 			}
+			if (bi.getAction() == TRANSFER_VESPENE && items[i - 1].getTarget() == UnitId::PROTOSS_ASSIMILATOR) {
+				// causes build to be broken
+				continue;
+			}
 			if (bi.totalWait() == 0) {
 				BuildOrder bo = base;
 				std::stringstream sstr;
