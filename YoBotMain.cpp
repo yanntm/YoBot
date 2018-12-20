@@ -6,7 +6,7 @@
 #include "LadderInterface.h"
 
 //#define _GENTECHTREE 1
-//#define _BOSEARCH 1
+#define _BOSEARCH 1
 
 #ifdef DEBUG
 #ifdef _GENTECHTREE 
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 	BuildGoal goal(0); // ASAP
 	goal.addUnit(UnitId::PROTOSS_IMMORTAL, 1);
 	//goal.addUnit(UnitId::PROTOSS_DISRUPTOR, 1);
-	goal.addUnit(UnitId::PROTOSS_CARRIER, 2);
+	goal.addUnit(UnitId::PROTOSS_CARRIER, 1);
 	//goal.addUnit(UnitId::PROTOSS_GATEWAY, 3);
 	//goal.addUnit(UnitId::PROTOSS_STARGATE, 3);
 	goal.addUnit(UnitId::PROTOSS_OBSERVER, 1);
@@ -90,9 +90,71 @@ int main(int argc, char* argv[])
 	std::cout << "Initial realizable :" << std::endl;
 	bo.print(std::cout);
 	auto boopt = builder.improveBO(bo);
+	
 	std::cout << "Final realizable :" << std::endl;
 	boopt.print(std::cout);
+	timeBO(boopt);
+	{
+		BuildOrder bo;
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_GATEWAY);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_GATEWAY);
+		bo.addItem(UnitId::PROTOSS_CYBERNETICSCORE);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_ASSIMILATOR);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_PROBE);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_STARGATE);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PHOENIX);
+		bo.addItem(UnitId::PROTOSS_ASSIMILATOR);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_PHOENIX);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_PHOENIX);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_ROBOTICSFACILITY);
+		bo.addItem(UnitId::PROTOSS_ZEALOT);
+		bo.addItem(UnitId::PROTOSS_FLEETBEACON);
+		bo.addItem(UnitId::PROTOSS_PYLON);
+		bo.addItem(UnitId::PROTOSS_OBSERVER);
+		bo.addItem(UnitId::PROTOSS_IMMORTAL);
+		bo.addItem(UnitId::PROTOSS_CARRIER);
+		if (!timeBO(bo)) {
+			auto boe = BOBuilder::enforcePrereq(bo);
+			timeBO(boe);
+			std::cout << "Patch was necessary :" << std::endl;
+			bo = boe;
+		}
+		std::cout << "build by voxel :" << std::endl;
+		bo.print(std::cout);
 
+		auto boopt2 = builder.improveBO(bo);
+
+		std::cout << "Final realizable :" << std::endl;
+		boopt2.print(std::cout);
+	}
 
 	std::string s;
 	std::cin >> s;
