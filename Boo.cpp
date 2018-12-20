@@ -25,7 +25,7 @@ namespace suboo {
 					totalwait += bi.totalWait();
 				}
 				std::cout << candDesc[index] << " feasible in " << total;
-				if (total < best || (total <= best && (bomin > bestmin || bomin == bestmin && totalwait < bestwait))) {
+				if (total < best || (total <= best && (bomin > 1 + bestmin || ::abs(bomin - bestmin) < 1 && totalwait < bestwait))) {
 					bestindex = index;
 					bestmin = bomin;
 					best = total;
@@ -253,6 +253,9 @@ namespace suboo {
 		GameState current = tech.getInitial();
 		for (int i = 1, e = items.size(); i < e; i++) {
 			auto & bi = items[i];
+			if (bi == items[i - 1]) {
+				continue;
+			}
 			if (bi.totalWait() == 0) {
 				BuildOrder bo = base;
 				std::stringstream sstr;
@@ -285,6 +288,34 @@ namespace suboo {
 	}
 	std::pair<int, BuildOrder> AddProductionForceful::improve(const BuildOrder & base)
 	{
-		return std::pair<int, BuildOrder>(0,BuildOrder());
+		auto & tech = TechTree::getTechTree();
+		auto copy = base;
+		std::map<UnitId, int> waitFor;
+		for (auto & bi : base.getItems()) {
+			if (bi.getAction() == BUILD) {
+				if (bi.timeFree > 0) {
+					auto & unit = tech.getUnitById(bi.getTarget());
+					if (unit.builder != UnitId::INVALID) {
+						auto it = waitFor.find(unit.builder);
+						if (it == waitFor.end()) {
+							waitFor[unit.builder] = bi.timeFree;
+						}
+						else {
+							it->second += bi.timeFree;
+						}
+					}
+				}
+			}
+		}
+		std::vector<BuildOrder> candidates;
+		for (auto & pair : waitFor) {
+			if (pair.second >= 30) {
+				copy.addItem(pair.first);
+				copy = BOBuilder::enforcePrereq(copy);
+				copy = BOBuilder::improveBO(copy);
+				candidates.emplace_back(copy);
+			}
+		}
+		return findBest(base, candidates, { "forcefulProduction" });
 	}
 }
