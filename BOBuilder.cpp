@@ -106,6 +106,7 @@ namespace suboo {
 			}			
 		}
 		bo = bopre;
+		return true;
 	}
 
 	BuildOrder BOBuilder::enforcePrereq(const BuildOrder & bo) {
@@ -223,14 +224,16 @@ namespace suboo {
 					}
 					bi.timePre = gs.getTimeStamp() - cur;
 				}
-				if ((int)u.builder != 0 && !gs.hasFreeUnit(u.prereq)) {
-					int cur = gs.getTimeStamp();
-					if (!gs.waitforUnitFree(u.builder)) {
-						std::cout << "Insufficient requirements missing builder :" << tech.getUnitById(u.builder).name << std::endl;
-						gs.print(std::cout);
-						return false;
+				if (u.builder != UnitId::INVALID) {
+					if (!gs.hasFreeUnit(u.builder)) {
+						int cur = gs.getTimeStamp();
+						if (!gs.waitforUnitFree(u.builder)) {
+							std::cout << "Insufficient requirements missing builder :" << tech.getUnitById(u.builder).name << std::endl;
+							gs.print(std::cout);
+							return false;
+						}
+						bi.timeFree = gs.getTimeStamp() - cur;
 					}
-					bi.timeFree = gs.getTimeStamp() - cur;
 					if (u.effect == u.TRAVEL) {
 						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.travel_time);
 					}
@@ -238,6 +241,8 @@ namespace suboo {
 						gs.assignFreeUnit(u.builder, UnitInstance::BUSY, u.production_time);
 					}
 				}
+
+				
 				if (u.food_provided < 0 && gs.getAvailableSupply() < -u.food_provided) {
 					int cur = gs.getTimeStamp();					
 					if (!gs.waitforFreeSupply(-u.food_provided)) {
@@ -282,9 +287,10 @@ namespace suboo {
 					}
 				}
 				if (vcount >= 3 * (gas+soongas)) {
-					std::cout << "Gas over saturated \n";
-					gs.print(std::cout);
-					return false;
+					std::cout << "Gas over saturated skipping \n";					
+					//gs.print(std::cout);
+					//return false;
+					continue;
 				}
 				if (vcount >= 3 * gas) {
 					int cur = gs.getTimeStamp();
@@ -299,9 +305,15 @@ namespace suboo {
 					std::cout << "No probe available for mining \n";
 					gs.print(std::cout);
 					return false;
-				}				
+				}
 			}
 			bi.setTime(gs.getTimeStamp());
+		}
+		// finalize build : free all units
+		if (!gs.waitforAllUnitFree()) {
+			std::cout << "Could not free all units \n";
+			gs.print(std::cout);
+			return false;
 		}
 		bo.getFinal() = gs;
 		return true;
