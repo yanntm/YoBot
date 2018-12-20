@@ -22,7 +22,7 @@ namespace suboo {
 		return bo;
 	}
 
-	void addPreReq(std::vector<UnitId> & pre, GameState & state, std::unordered_set<UnitId> & seen, UnitId target, const TechTree & tech) {
+	void addPreReq(std::vector<BuildItem> & pre, GameState & state, std::unordered_set<UnitId> & seen, UnitId target, const TechTree & tech) {
 		auto & unit = tech.getUnitById(target);
 		if ((int)unit.prereq != 0) {
 			if (!state.hasFinishedUnit(unit.prereq)) {
@@ -43,7 +43,8 @@ namespace suboo {
 		// vespene
 		if (unit.vespene_cost > 0 && !state.hasFinishedUnit(UnitId::PROTOSS_ASSIMILATOR)) {
 			pre.push_back(UnitId::PROTOSS_ASSIMILATOR);
-			state.addUnit(UnitId::PROTOSS_ASSIMILATOR);			
+			state.addUnit(UnitId::PROTOSS_ASSIMILATOR);
+			pre.push_back(TRANSFER_VESPENE);
 		}		
 		pre.push_back(unit.type);
 		state.addUnit(unit.type);
@@ -65,7 +66,7 @@ namespace suboo {
 				auto target = bi.getTarget();
 				auto & unit = tech.getUnitById(target);
 				// unit prereq				
-				std::vector<UnitId> pre;
+				std::vector<BuildItem> pre;
 				addPreReq(pre, state, seen, unit.type, tech);
 
 				for (auto & id : pre) {
@@ -124,17 +125,11 @@ namespace suboo {
 				auto target = bi.getTarget();
 				auto & unit = tech.getUnitById(target);
 				// unit prereq				
-				std::vector<UnitId> pre;
+				std::vector<BuildItem> pre;
 				addPreReq(pre, state, seen, unit.type, tech);
 				
 				for (auto & id : pre) {
-					bopre.addItem(id);
-					if (id == UnitId::PROTOSS_ASSIMILATOR) {
-						//for (int i = 0; i < 3; i++) {
-							bopre.addItem(BuildAction::TRANSFER_VESPENE);
-							vesp++;
-						//}
-					}
+					bopre.addItem(id);					
 				}							
 			}
 			else {				
@@ -289,8 +284,7 @@ namespace suboo {
 				if (vcount >= 3 * (gas+soongas)) {
 					std::cout << "Gas over saturated skipping \n";					
 					//gs.print(std::cout);
-					//return false;
-					continue;
+					return false;					
 				}
 				if (vcount >= 3 * gas) {
 					int cur = gs.getTimeStamp();
