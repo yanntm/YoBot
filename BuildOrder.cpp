@@ -54,11 +54,14 @@ namespace suboo {
 			bi.print(out);
 			out << std::endl;
 		}
-		out << "Reached state at " << final.getTimeStamp()  << std::endl;
+		out << "Reached state at " << final.getTimeStamp() / 60 << "m" << final.getTimeStamp() % 60 << "s"<< std::endl;
 		final.print(out);
 	}
 	void BuildItem::print(std::ostream & out) const
 	{
+		if (time != 0) {
+			out << "@" << time / 60 << "m" << time % 60 << "s ";
+		}
 		auto & tech = TechTree::getTechTree();
 		if (action == BUILD) {
 			out << "Build " << tech.getUnitById(target).name;
@@ -68,10 +71,7 @@ namespace suboo {
 		}
 		else if (action == TRANSFER_MINERALS) {
 			out << "Transfer To Minerals";
-		}
-		if (time != 0) {
-			out << "'" << time;
-		}
+		}		
 #ifdef DEBUG
 		out << " waited : ";
 		if (timeMin > 0) out << " min: " << timeMin;
@@ -118,7 +118,9 @@ namespace suboo {
 			mps = 0;
 			for (auto & u : units) {
 				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_MINERALS) {
-					mps += 0.625; // arbitrary
+					// 115 frames : 0,9739130435
+					mps += 0.896; // as measured for a RT average time of 125 frames
+					// 138 (3workers) : 0,8115942029
 				}
 			}
 		}
@@ -130,7 +132,7 @@ namespace suboo {
 			vps = 0;
 			for (auto & u : units) {
 				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_VESPENE) {
-					vps += 0.625; // arbitrary
+					vps += 0.649; // 138 (3workers) : 0,6492753623
 				}
 			}
 		}
@@ -277,6 +279,27 @@ namespace suboo {
 			stepForward(units[best].time_to_free);
 			return true;
 		}
+	}
+	bool GameState::waitforAllUnitFree()
+	{
+		int index = 0;
+		int best = -1;
+		for (auto & u : units) {
+			if (u.state != u.FREE && u.time_to_free != 0) {
+				if (best == -1 || units[best].time_to_free < u.time_to_free) {
+					best = index;
+				}
+			}
+			index++;
+		}
+		if (best == -1) {
+			return true;
+		}
+		else {
+			// std::cout << "Waited for all to be free for " << units[best].time_to_free << "s." << std::endl;
+			stepForward(units[best].time_to_free);
+			return true;
+		}		
 	}
 	bool GameState::waitforFreeSupply(int needed)
 	{
