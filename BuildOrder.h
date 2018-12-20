@@ -87,6 +87,7 @@ namespace suboo {
 		bool waitForResources(int mins, int vesp, std::pair<int,int> * waited = nullptr);
 		bool waitforUnitCompletion(UnitId id);
 		bool waitforUnitFree(UnitId id);
+		bool waitforAllUnitFree();
 		bool waitforFreeSupply(int needed);
 		int probesToSaturation() const;
 		bool assignProbe(UnitInstance::UnitState state);
