@@ -59,7 +59,7 @@ namespace suboo {
 		for (auto & u : state.getUnits()) {
 			seen.insert(u.type);
 		}
-		
+		int sz = bo.getItems().size();
 		for (int i = 0; i < bo.getItems().size() && i >= 0; i++) {
 			auto & bi = bo.getItems()[i];
 			if (bi.getAction() == BUILD) {
@@ -72,7 +72,8 @@ namespace suboo {
 				for (auto & id : pre) {
 					int j,e;
 					for (j = i, e = bo.getItems().size(); j < e; j++) {
-						if (bo.getItems()[j] == BuildItem(id)) {
+						if (bo.getItems()[j] == BuildItem(id) || 
+							(id==UnitId::PROTOSS_PYLON && bo.getItems()[j] == UnitId::PROTOSS_NEXUS)) {
 							bo.removeItem(j);
 							if (i == j) {
 								i--;
@@ -151,37 +152,42 @@ namespace suboo {
 		return bo;
 	}
 
-	BuildOrder BOBuilder::improveBO(const BuildOrder & bo)
+	BuildOrder BOBuilder::improveBO(const BuildOrder & bo, int depth)
 	{
 		std::vector<pboo> optimizers;
 		optimizers.emplace_back(new NoWaitShifter());
-		optimizers.emplace_back(new AddVespeneGatherer());
 		optimizers.emplace_back(new AddMineralGatherer());
-		optimizers.emplace_back(new AddMineralGathererStack());
 		optimizers.emplace_back(new AddProduction());
 		optimizers.emplace_back(new LeftShifter());
+		optimizers.emplace_back(new AddVespeneGatherer());
+		optimizers.emplace_back(new AddMineralGathererStack());
+		optimizers.emplace_back(new AddProductionForceful());
+
+		if (depth == 0)
+			return bo;
 		//
 		BuildOrder best = bo;
 		int gain = 0;
 		do {
 			gain = 0;
+			
 			for (auto & p : optimizers) {
 				int optgain = 0;
 				// nested loop mostly does not help, most rules already try many positions it's redundant
-				//do {
+				do {
 					optgain = 0;
-					auto res = p->improve(best);
+					auto res = p->improve(best,depth);
 					if (res.first > 0) {
 						gain += res.first;
 						optgain += res.first;
 						best = res.second;
-						std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
-						best.print(std::cout);
+						std::cout << "Improved results using " << p->getName() << " by " << res.first << " s. Current best timing :" << best.getFinal().getTimeStamp() << "s at depth " <<  depth <<  std::endl;
+						//best.print(std::cout);
 					}
 					else {
-						std::cout << "No improvement of results using " << p->getName() << ". Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
+						//std::cout << "No improvement of results using " << p->getName() << ". Current best timing :" << best.getFinal().getTimeStamp() << "s" << std::endl;
 					}
-				//} while (optgain >0);
+				} while (optgain >0);
 			}
 		} while (gain > 0);		
 
@@ -197,6 +203,7 @@ namespace suboo {
 		for (auto & bi : bo.getItems()) {
 
 			bi.clearTimes();
+			int cur = gs.getTimeStamp();
 			// std::cout << "On :"; bi.print(std::cout); std::cout << std::endl;
 			if (bi.getAction() == BUILD) {
 				auto & u = tech.getUnitById(bi.getTarget());
@@ -211,7 +218,7 @@ namespace suboo {
 					bi.timeVesp = waited.second;
 				}
 				if ((int)u.prereq != 0 && !gs.hasFinishedUnit(u.prereq)) {
-					int cur = gs.getTimeStamp();
+					
 					if (!gs.waitforUnitCompletion(u.prereq)) {
 						std::cout << "Insufficient requirements missing tech req :" << tech.getUnitById(u.prereq).name << std::endl;
 						gs.print(std::cout);
@@ -221,7 +228,7 @@ namespace suboo {
 				}
 				if (u.builder != UnitId::INVALID) {
 					if (!gs.hasFreeUnit(u.builder)) {
-						int cur = gs.getTimeStamp();
+						
 						if (!gs.waitforUnitFree(u.builder)) {
 							std::cout << "Insufficient requirements missing builder :" << tech.getUnitById(u.builder).name << std::endl;
 							gs.print(std::cout);
@@ -239,7 +246,7 @@ namespace suboo {
 
 				
 				if (u.food_provided < 0 && gs.getAvailableSupply() < -u.food_provided) {
-					int cur = gs.getTimeStamp();					
+										
 					if (!gs.waitforFreeSupply(-u.food_provided)) {
 						//std::cout << "Insufficient food missing pylons." << std::endl;
 						//gs.print(std::cout);
@@ -286,8 +293,7 @@ namespace suboo {
 					//gs.print(std::cout);
 					return false;					
 				}
-				if (vcount >= 3 * gas) {
-					int cur = gs.getTimeStamp();
+				if (vcount >= 3 * gas) {					
 					if (!gs.waitforUnitCompletion(prereq)) {
 						std::cout << "No assimilator in state \n";
 						gs.print(std::cout);
@@ -301,13 +307,30 @@ namespace suboo {
 					return false;
 				}
 			}
+			else if (bi.getAction() == WAIT_GOAL) {
+				auto cur = gs.getTimeStamp();
+				// finalize build : free all units
+				if (!gs.waitforAllUnitFree()) {
+					std::cout << "Could not free all units \n";
+					gs.print(std::cout);
+					return false;
+				}
+				bi.timeFree = gs.getTimeStamp() - cur;
+			}
 			bi.setTime(gs.getTimeStamp());
 		}
-		// finalize build : free all units
-		if (!gs.waitforAllUnitFree()) {
-			std::cout << "Could not free all units \n";
-			gs.print(std::cout);
-			return false;
+
+		if (bo.getItems().back().getAction() != WAIT_GOAL) {
+			auto cur = gs.getTimeStamp();
+			// finalize build : free all units
+			if (!gs.waitforAllUnitFree()) {
+				std::cout << "Could not free all units \n";
+				gs.print(std::cout);
+				return false;
+			}
+			auto bifin = BuildItem(WAIT_GOAL);
+			bifin.timeFree = gs.getTimeStamp() - cur;
+			bo.getItems().push_back(bifin);
 		}
 		bo.getFinal() = gs;
 		return true;
