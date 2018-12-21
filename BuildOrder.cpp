@@ -60,7 +60,7 @@ namespace suboo {
 	void BuildItem::print(std::ostream & out) const
 	{
 		if (time != 0) {
-			out << "@" << time / 60 << "m" << time % 60 << "s ";
+			out << time / 60 << ":" << time % 60 << " (" << time << " s)";
 		}
 		auto & tech = TechTree::getTechTree();
 		if (action == BUILD) {
@@ -71,15 +71,16 @@ namespace suboo {
 		}
 		else if (action == TRANSFER_MINERALS) {
 			out << "Transfer To Minerals";
-		}		
-#ifdef DEBUG
+		}
+		else if (action == WAIT_GOAL) {
+			out << "Wait for Goal";
+		}
 		out << " waited : ";
 		if (timeMin > 0) out << " min: " << timeMin;
 		if (timeVesp > 0) out << " vesp: " << timeVesp;
 		if (timePre > 0) out << " pre: " << timePre;
 		if (timeFree > 0) out << " free: " << timeFree; 
 		if (timeFood > 0) out << " food: " << timeFood;		
-#endif
 	}
 	int GameState::probesToSaturation() const
 	{
@@ -108,7 +109,7 @@ namespace suboo {
 	}
 	void GameState::addUnit(const UnitInstance & unit)
 	{
-		units.emplace_back(unit);
+		units.push_back(unit);
 		vps = -1.0;
 		mps = -1.0;
 	}
@@ -387,7 +388,7 @@ namespace suboo {
 		}
 
 		out << std::endl;
-		out << "bank : minerals = " << minerals << "("<< getMineralsPerSecond() <<"/s)" << " vespene = " << vespene << "(" << getVespenePerSecond() << "/s)"<< " supply : " << getAvailableSupply() << ":" << getUsedSupply() << "/" << getMaxSupply() <<  std::endl;
+		out << "bank : minerals = " << minerals << "("<< getMineralsPerSecond() * 60 <<"/min)" << " vespene = " << vespene << "(" << getVespenePerSecond() *60 << "/min)"<< " supply : " << getAvailableSupply() << ":" << getUsedSupply() << "/" << getMaxSupply() <<  std::endl;
 	}
 	int GameState::countUnit(UnitId unit) const
 	{
