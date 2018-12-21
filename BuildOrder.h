@@ -117,6 +117,7 @@ namespace suboo {
 		BUILD,
 		TRANSFER_VESPENE,
 		TRANSFER_MINERALS,
+		WAIT_GOAL,
 		CHRONO
 	};
 
@@ -156,7 +157,7 @@ namespace suboo {
 		template<typename T> 
 		void addItem(T tocreate)
 		{
-			items.emplace_back(BuildItem(tocreate));
+			items.push_back(BuildItem(tocreate));
 		}
 		template<typename T>
 		void addItemFront(T tocreate)
