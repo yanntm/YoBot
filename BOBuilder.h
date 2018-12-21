@@ -13,7 +13,7 @@ namespace suboo {
 		static bool enforcePrereqBySwap(BuildOrder & bo);
 		static BuildOrder enforcePrereq(const BuildOrder & bo);
 		BuildOrder computeBO();	
-		static BuildOrder improveBO(const BuildOrder & bo);
+		static BuildOrder improveBO(const BuildOrder & bo, int depth);
 	};
 	// true if it is realizable + edit times of build items and final state
 	bool timeBO(BuildOrder & bo);
