@@ -7,12 +7,13 @@
 #include <fstream>
 
 
-bool isRelevant(const sc2::UnitTypeData & unitdesc) {
+bool isRelevant(const sc2::UnitTypeData & unitdesc, const std::unordered_map<int, int> & abilityToUnit) {
 	return unitdesc.available && unitdesc.race == sc2::Race::Protoss
 		&& !(unitdesc.name.find("Weapon") != std::string::npos
 			|| unitdesc.name.find("MP") != std::string::npos
 			|| unitdesc.name.find("SkinPreview") != std::string::npos
-			|| unitdesc.name.find("Interceptors") != std::string::npos);
+			|| unitdesc.name.find("Interceptors") != std::string::npos)
+		&& (abilityToUnit.empty() || sc2util::IsBuilding(unitdesc.unit_type_id) || (abilityToUnit.find((int)unitdesc.ability_id) != abilityToUnit.end() || unitdesc.name == "Mothership"));
 }
 
 void suboo::TechBot::OnGameStart()
@@ -41,7 +42,7 @@ void suboo::TechBot::OnGameStart()
 	initvesp = Observation()->GetVespene();
 	auto point = map.getPosition(map.ally,map.main);
 	for (const sc2::UnitTypeData & unitdesc : types) {
-		if (isRelevant(unitdesc)) {
+		if (isRelevant(unitdesc, {})) {
 			point = point + sc2::Point3D(3, 0, 0);
 			while (! map.PlacementB(info, point,3)) {
 				point = point + sc2::Point3D(3, 0, 0);
@@ -108,7 +109,7 @@ void suboo::TechBot::OnStep()
 		std::vector<std::pair<int, int> > ind;
 		for (const sc2::UnitTypeData & unitdesc : types) {
 
-			if (isRelevant(unitdesc)) {
+			if (isRelevant(unitdesc,abilityToUnit)) {
 				if ((int)unitdesc.unit_type_id > maxunitID) {
 					maxunitID = (int)unitdesc.unit_type_id;
 				}
