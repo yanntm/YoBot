@@ -87,7 +87,7 @@ void suboo::TechBot::OnStep()
 
 		out << "TechTree::TechTree() :\n";
 		out << "	initial({";
-		for (auto & u : initial.getUnits()) {
+		for (auto & u : initial.getFreeUnits()) {
 			if (sc2util::IsWorkerType(u.type)) {
 				out << " UnitInstance( (UnitId)" << (int)u.type << ", UnitInstance::MINING_MINERALS, 0),\n";
 			}
