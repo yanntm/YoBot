@@ -59,17 +59,22 @@ namespace suboo {
 	};
 	std::string to_string(const UnitInstance::UnitState & state);
 	class GameState {
-		std::vector<UnitInstance> units;
-		
+		std::vector<UnitInstance> freeUnits;
+		std::vector<UnitInstance> attackUnits;
+		std::vector<UnitInstance> busyUnits;
+
 		float minerals;
 		mutable float mps;
 		float vespene; 
 		mutable float vps;
 		int timestamp;
+		mutable int supply;
 
 	public :
-		GameState(const std::vector<UnitInstance> & units = {}, int minerals = 0, int vespene = 0) : units(units), minerals(minerals), mps(-1.0), vespene(vespene), vps(-1.0), timestamp(0) {}
-		const std::vector<UnitInstance> & getUnits() const { return units; }
+		GameState(const std::vector<UnitInstance> & units = {}, int minerals = 0, int vespene = 0) : freeUnits(units), minerals(minerals), mps(-1.0), vespene(vespene), vps(-1.0), timestamp(0),supply(-1) {}
+		const std::vector<UnitInstance> & getFreeUnits() const { return freeUnits; }
+		const std::vector<UnitInstance> & getAttackUnits() const { return attackUnits; }
+		const std::vector<UnitInstance> & getBusyUnits() const { return busyUnits; }
 		bool hasFreeUnit(UnitId unit) const; // must be free; 
 		bool hasFinishedUnit(UnitId unit) const; // must be finished; 
 		void addUnit(UnitId unit);
@@ -106,9 +111,18 @@ namespace suboo {
 	public:
 		// singleton
 		static const TechTree & getTechTree();
-		int getUnitIndex(UnitId id) const;
-		const Unit & getUnitById(UnitId id) const;
-		const Unit & getUnitByIndex(int index) const;
+		int TechTree::getUnitIndex(UnitId id) const
+		{
+			return indexes[(int)id];
+		}
+		const Unit & TechTree::getUnitById(UnitId id) const
+		{
+			return units[getUnitIndex(id)];
+		}
+		const Unit & TechTree::getUnitByIndex(int index) const
+		{
+			return units[index];
+		}
 		TechTree(const TechTree &) = delete;
 		size_t size() const { return indexes.size(); }
 		const GameState & getInitial() const { return initial; }
@@ -150,9 +164,7 @@ namespace suboo {
 		GameState initial;
 		std::deque<BuildItem> items;
 		
-		GameState final;
-		GameState current;
-		int nextItem;
+		GameState final;				
 	public :
 		void print(std::ostream & out);
 		template<typename T> 
