@@ -62,4 +62,10 @@ namespace suboo {
 		const char* getName() const { return "AddProductionForceful"; }
 	};
 
+
+	class RemoveExtra : public boo {
+		std::pair<int, BuildOrder> improve(const BuildOrder & base, int depth);
+		const char* getName() const { return "Remove Extra"; }
+	};
+
 }
