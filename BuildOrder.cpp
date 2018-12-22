@@ -29,22 +29,10 @@ namespace suboo {
 	
 	const TechTree & TechTree::getTechTree()
 	{
-		static std::mutex m;
-		static TechTree singletonTech;
-		std::unique_lock<std::mutex> l(m);
+	//	static std::mutex m;
+		static const TechTree singletonTech;
+	//	std::unique_lock<std::mutex> l(m);
 		return singletonTech;
-	}
-	int TechTree::getUnitIndex(UnitId id) const
-	{
-		return indexes[(int)id];
-	}
-	const Unit & TechTree::getUnitById(UnitId id) const
-	{
-		return units[getUnitIndex(id)];
-	}
-	const Unit & TechTree::getUnitByIndex(int index) const
-	{
-		return units[index];
 	}
 	void BuildOrder::print(std::ostream & out)
 	{
@@ -91,17 +79,23 @@ namespace suboo {
 	}
 	bool GameState::hasFreeUnit(UnitId unit) const
 	{
-		return std::any_of(units.begin(), units.end(), [unit](auto & u) {
+		return std::any_of(freeUnits.begin(), freeUnits.end(), [unit](auto & u) {
 			return (u.type == unit && u.state == u.FREE) 
 				|| (sc2util::IsWorkerType(unit) && u.state == u.MINING_MINERALS); 
 		});
 	}
 	bool GameState::hasFinishedUnit(UnitId unit) const
 	{
-		return std::any_of(units.begin(), units.end(), [unit](auto & u) {
+		return std::any_of(busyUnits.begin(), busyUnits.end(), [unit](auto & u) {
 			return (u.type == unit && u.state != u.BUILDING)
 				;
-		});
+		})
+			||
+			std::any_of(freeUnits.begin(), freeUnits.end(), [unit](auto & u) {
+			return (u.type == unit && u.state != u.BUILDING)
+				;
+		})
+		;
 	}
 	void GameState::addUnit(UnitId unit)
 	{
@@ -109,35 +103,61 @@ namespace suboo {
 	}
 	void GameState::addUnit(const UnitInstance & unit)
 	{
-		units.push_back(unit);
-		vps = -1.0;
-		mps = -1.0;
+		if (unit.state == UnitInstance::MINING_MINERALS || (unit.state == UnitInstance::FREE && sc2util::IsWorkerType(unit.type) )) {
+			freeUnits.push_back(unit);
+			mps = -1.0f;
+		}
+		else if (unit.state == UnitInstance::FREE) {
+			if (!sc2util::IsBuilding(unit.type)) {
+				attackUnits.push_back(unit);
+			}
+			else {
+				freeUnits.push_back(unit);
+			}
+		}
+		else
+		{
+			busyUnits.push_back(unit);
+			if (unit.state == UnitInstance::MINING_VESPENE) {
+				vps = -1.0f;
+			}
+		}
+		if (TechTree::getTechTree().getUnitById(unit.type).food_provided != 0) {
+			supply = -1;
+		}
 	}
 	float GameState::getMineralsPerSecond() const
 	{
-		int maxminers = countFreeUnit(UnitId::PROTOSS_NEXUS) * 20;
 		if (mps == -1.0) {
-			mps = 0;
+			int nexi = 0;
 			int active = 0;
-			for (auto & u : units) {
+			for (auto & u : freeUnits) {
 				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_MINERALS) {
-					// 115 frames : 0,9739130435
-					mps += 0.896; // as measured for a RT average time of 125 frames
-					// 138 (3workers) : 0,8115942029
-					active++;
-					if (active == maxminers) {
-						break;
-					}
+					active++;					
+				}
+				else if (u.type == UnitId::PROTOSS_NEXUS &&  u.state != UnitInstance::BUILDING) {
+					nexi++;
 				}
 			}
+			for (auto & u : busyUnits) {
+				if (u.type == UnitId::PROTOSS_NEXUS &&  u.state != UnitInstance::BUILDING) {
+					nexi++;
+				}
+			}
+
+			int realactive = std::min(20 * nexi, active);
+			// 115 frames : 0,9739130435
+			mps = (0.896 * realactive); // as measured for a RT average time of 125 frames
+			// 138 (3workers) : 0,8115942029			
 		}
+
 		return mps;
 	}
 	float GameState::getVespenePerSecond() const
 	{
 		if (vps == -1.0) {
 			vps = 0;
-			for (auto & u : units) {
+			for (auto & u : busyUnits) {
 				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_VESPENE) {
 					vps += 0.649; // 138 (3workers) : 0,6492753623
 				}
@@ -145,45 +165,74 @@ namespace suboo {
 		}
 		return vps;
 	}
+	inline int getFood(const UnitInstance & u, const TechTree & tech) {
+		auto & unit = tech.getUnitById(u.type);
+		if (unit.food_provided < 0) {
+			return unit.food_provided;
+		}
+		else if (u.state != u.BUILDING) {
+				return unit.food_provided;
+		}
+		return 0;
+	}
 	int GameState::getAvailableSupply() const
 	{
-		auto & tech = TechTree::getTechTree();
-		int sum = 0;
-		for (auto & u : units) {
-			auto & unit = tech.getUnitById(u.type);
-			if (unit.food_provided < 0) {
-				sum += unit.food_provided;
+		if (supply == -1) {
+			auto & tech = TechTree::getTechTree();
+			int sum = 0;
+			
+			for (auto & u : freeUnits) {
+				sum += getFood(u,tech);
 			}
-			else {
-				if (u.state != u.BUILDING) {
-					sum += unit.food_provided;
-				}
+			for (auto & u : attackUnits) {
+				sum += getFood(u, tech);
 			}
-		}
+			for (auto & u : busyUnits) {
+				sum += getFood(u, tech);
+			}
+			supply = sum;
+		} 
 
-		return sum;
+		return supply;
 	}
 	int GameState::getUsedSupply() const
 	{
 		auto & tech = TechTree::getTechTree();
 		int sum = 0;
-		for (auto & u : units) {
-			auto & unit = tech.getUnitById(u.type);
-			if (unit.food_provided < 0) {
-				sum -= unit.food_provided;
+		for (auto & u : freeUnits) {
+			auto f = getFood(u, tech);
+			if (f < 0) {
+				sum -= f;
 			}
 		}
-
+		for (auto & u : attackUnits) {
+			auto f = getFood(u, tech);
+			if (f < 0) {
+				sum -= f;
+			}
+		}
+		for (auto & u : busyUnits) {
+			auto f = getFood(u, tech);
+			if (f < 0) {
+				sum -= f;
+			}
+		}
 		return sum;
 	}
 	int GameState::getMaxSupply() const
 	{
 		auto & tech = TechTree::getTechTree();
 		int sum = 0;
-		for (auto & u : units) {
-			auto & unit = tech.getUnitById(u.type);
-			if (unit.food_provided > 0 && u.state != u.BUILDING) {
-				sum += unit.food_provided;
+		for (auto & u : freeUnits) {
+			auto f = getFood(u,tech);
+			if (f > 0) {
+				sum += f;
+			}
+		}
+		for (auto & u : busyUnits) {
+			auto f = getFood(u,tech);
+			if (f > 0) {
+				sum += f;
 			}
 		}
 
@@ -193,24 +242,38 @@ namespace suboo {
 	{
 		for (int i = 0; i < secs; i++) {
 			bool changed = false;
-			for (auto & u : units) {
+			for (auto it = busyUnits.begin(); it != busyUnits.end() ; /*NOP*/) {
+				auto & u = *it;
+				bool erased = false;
 				if (u.time_to_free > 0) {
 					u.time_to_free--;
 					if (u.time_to_free == 0) {
 						if (!sc2util::IsWorkerType(u.type)) {
-							u.state = u.FREE;
+							u.state = u.FREE;	
+							auto & unit = TechTree::getTechTree().getUnitById(u.type);
+							addUnit(u);
+							erased = true;
 						}
 						else {
 							// default for workers is to mine
 							u.state = u.MINING_MINERALS;
-						}
+							addUnit(u);
+							erased = true;
+						}						
 						changed = true;
 					}
 				}
+				if (erased) {
+					it = busyUnits.erase(it);
+				}
+				else {
+					++it;
+				}
 			}
 			if (changed) {
-				mps = -1;
-				vps = -1;
+				mps = -1.0f;
+				vps = -1.0f;
+				supply = -1;
 			}
 			minerals += getMineralsPerSecond() ;
 			vespene += getVespenePerSecond() ;
@@ -252,8 +315,8 @@ namespace suboo {
 	}
 	bool GameState::waitforUnitCompletion(UnitId id)
 	{
-		auto it = std::find_if(units.begin(), units.end(), [id](auto & u) {return u.type == id && u.state == u.BUILDING; });
-		if (it == units.end()) {
+		auto it = std::find_if(busyUnits.begin(), busyUnits.end(), [id](auto & u) {return u.type == id && u.state == u.BUILDING; });
+		if (it == busyUnits.end()) {
 			return false;
 		}
 		else {
@@ -264,15 +327,15 @@ namespace suboo {
 	}
 	bool GameState::waitforUnitFree(UnitId id)
 	{
-		auto it = std::find_if(units.begin(), units.end(), [id](auto & u) {return u.type == id && u.state == u.FREE || (sc2util::IsWorkerType(id) && u.state == u.MINING_MINERALS); });
-		if (it != units.end()) {
+		auto it = std::find_if(freeUnits.begin(), freeUnits.end(), [id](auto & u) {return u.type == id && u.state == u.FREE || (sc2util::IsWorkerType(id) && u.state == u.MINING_MINERALS); });
+		if (it != freeUnits.end()) {
 			return true;
 		}
 		int index = 0;
 		int best = -1;
-		for (auto & u : units) {
+		for (auto & u : busyUnits) {
 			if (u.type == id && u.state != u.FREE && u.time_to_free != 0) {
-				if (best == -1 || units[best].time_to_free > u.time_to_free) {
+				if (best == -1 || busyUnits[best].time_to_free > u.time_to_free) {
 					best = index;
 				}
 			}
@@ -283,7 +346,7 @@ namespace suboo {
 		}
 		else {
 			// std::cout << "Waited for " << TechTree::getTechTree().getUnitById(id).name << " to be free for " << units[best].time_to_free << "s." << std::endl;
-			stepForward(units[best].time_to_free);
+			stepForward(busyUnits[best].time_to_free);
 			return true;
 		}
 	}
@@ -291,9 +354,9 @@ namespace suboo {
 	{
 		int index = 0;
 		int best = -1;
-		for (auto & u : units) {
+		for (auto & u : busyUnits) {
 			if (u.state != u.FREE && u.time_to_free != 0) {
-				if (best == -1 || units[best].time_to_free < u.time_to_free) {
+				if (best == -1 || busyUnits[best].time_to_free < u.time_to_free) {
 					best = index;
 				}
 			}
@@ -304,7 +367,7 @@ namespace suboo {
 		}
 		else {
 			// std::cout << "Waited for all to be free for " << units[best].time_to_free << "s." << std::endl;
-			stepForward(units[best].time_to_free);
+			stepForward(busyUnits[best].time_to_free);
 			return true;
 		}		
 	}
@@ -314,15 +377,15 @@ namespace suboo {
 		if (cur >= needed) {
 			return true;
 		}
-		auto it = std::find_if(units.begin(), units.end(), [](auto & u) {return u.type == UnitId::PROTOSS_PYLON && u.state != u.FREE ; });
-		if (it == units.end()) {
+		auto it = std::find_if(busyUnits.begin(), busyUnits.end(), [](auto & u) {return u.type == UnitId::PROTOSS_PYLON || u.type == UnitId::PROTOSS_NEXUS && u.state != u.FREE ; });
+		if (it == busyUnits.end()) {
 			return false;
 		}
 		int index = 0;
 		int best = -1;
-		for (auto & u : units) {
+		for (auto & u : busyUnits) {
 			if (u.state == u.BUILDING && (u.type == UnitId::PROTOSS_PYLON || u.type == UnitId::PROTOSS_NEXUS)) {
-				if (best == -1 || units[best].time_to_free > u.time_to_free) {
+				if (best == -1 || busyUnits[best].time_to_free > u.time_to_free) {
 					best = index;
 				}
 			}
@@ -333,7 +396,7 @@ namespace suboo {
 		}
 		else {
 			//std::cout << "Waited for " << TechTree::getTechTree().getUnitById(units[best].type).name << " to be provide food for " << units[best].time_to_free << "s." << std::endl;
-			stepForward(units[best].time_to_free);
+			stepForward(busyUnits[best].time_to_free);
 			return true;
 		}
 		
@@ -341,24 +404,37 @@ namespace suboo {
 	bool GameState::assignProbe(UnitInstance::UnitState state)
 	{
 		int done = 0;
-		for (auto & u : units) {
+		for (auto it = freeUnits.begin(); it != freeUnits.end(); ) { 
+			bool erase = false;
+			auto & u = *it;
 			if (sc2util::IsWorkerType(u.type) && ( u.state == u.FREE || u.state == u.MINING_MINERALS) ) {
 				u.state = UnitInstance::MINING_VESPENE;
 				vps = -1;
 				mps = -1;
+				busyUnits.push_back(u);
+				erase = true;
 				done++;
-				if (done >= 3) 
-					break;
 			}
+			if (erase) {
+				it = freeUnits.erase(it);
+			}
+			else {
+				++it;
+			}
+			if (done >= 3)
+				break;
 		}
 		return done>=3;
 	}
 	bool GameState::assignFreeUnit(UnitId type, UnitInstance::UnitState state, int time)
 	{
-		for (auto & u : units) {
+		for (auto it = freeUnits.begin(); it != freeUnits.end(); ++it) {
+			auto & u = *it;
 			if (type == u.type && u.state == u.FREE) {
 				u.state = state;
 				u.time_to_free = time;
+				busyUnits.push_back(u);
+				it = freeUnits.erase(it);
 				return true;
 			}
 		}
@@ -368,21 +444,34 @@ namespace suboo {
 	{
 		auto & tech = TechTree::getTechTree();
 		std::unordered_map<UnitId, std::unordered_map<UnitInstance::UnitState, int> > perUnitPerState;
-		for (auto & u : units) {
+		for (auto & u : freeUnits) {
 			auto it = perUnitPerState.find(u.type);
 			if (it == perUnitPerState.end()) {
 				perUnitPerState[u.type] = { {u.state,1} };
 			}
 			else {
 				auto & perState = it->second;
-				auto jt = perState.find(u.state);
-				if (jt == perState.end()) {
-					perState[u.state] = 1;
-				}
-				else
-				{
-					jt->second++;
-				}
+				perState[u.state] += 1;
+			}
+		}
+		for (auto & u : busyUnits) {
+			auto it = perUnitPerState.find(u.type);
+			if (it == perUnitPerState.end()) {
+				perUnitPerState[u.type] = { {u.state,1} };
+			}
+			else {
+				auto & perState = it->second;
+				perState[u.state] += 1;
+			}
+		}
+		for (auto & u : attackUnits) {
+			auto it = perUnitPerState.find(u.type);
+			if (it == perUnitPerState.end()) {
+				perUnitPerState[u.type] = { {u.state,1} };
+			}
+			else {
+				auto & perState = it->second;
+				perState[u.state] += 1;
 			}
 		}
 		for (auto it : perUnitPerState) {
@@ -398,11 +487,13 @@ namespace suboo {
 	}
 	int GameState::countUnit(UnitId unit) const
 	{
-		return std::count_if(units.begin(), units.end(), [unit](auto & u) {return u.type == unit ; });
+		return std::count_if(freeUnits.begin(), freeUnits.end(), [unit](auto & u) {return u.type == unit; })
+			+ std::count_if(busyUnits.begin(), busyUnits.end(), [unit](auto & u) {return u.type == unit; })
+			+ std::count_if(attackUnits.begin(), attackUnits.end(), [unit](auto & u) {return u.type == unit; });
 	}
 	int GameState::countFreeUnit(UnitId unit) const
 	{
-		return std::count_if(units.begin(), units.end(), [unit](auto & u) {return u.type == unit && u.state == UnitInstance::FREE; });
+		return std::count_if(freeUnits.begin(), freeUnits.end(), [unit](auto & u) {return u.type == unit && u.state == UnitInstance::FREE; });
 	}
 	UnitInstance::UnitInstance(UnitId type)
 		: type(type), state(FREE), time_to_free(0) 
