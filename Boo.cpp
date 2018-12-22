@@ -134,17 +134,17 @@ namespace suboo {
 					}
 					if (bj.getTime() == bi.getTime() || !biprecedesbj) {
 						BuildOrder bo = base;
-						std::stringstream sstr;
-						sstr << "swapping (" << i << " :"; bo.getItems()[i].print(sstr);
-						sstr << ") and (" << j << " :"; bo.getItems()[j].print(sstr);
-						sstr << ")" ;
+						//std::stringstream sstr;
+						//sstr << "swapping (" << i << " :"; bo.getItems()[i].print(sstr);
+						//sstr << ") and (" << j << " :"; bo.getItems()[j].print(sstr);
+						//sstr << ")" ;
 						bo.swapItems(i, j);
 
 						if (!BOBuilder::enforcePrereqBySwap(bo)) {
 							std::cout << "problem with swap prereq rule " << std::endl;
 						}
 						candidates.push_back(bo);
-						candindexes.push_back(sstr.str());
+						//candindexes.push_back(sstr.str());
 					}
 					if (!(j < e - 1 && items[j + 1] == items[j])) {
 						break;
@@ -222,26 +222,18 @@ namespace suboo {
 						}
 					}
 					if (!BOBuilder::enforcePrereqBySwap(candidate)) {
-						// original build used a nexus, add a pylon anyway
-						if (i <= 3) {
-							candidate.insertItem(UnitId::PROTOSS_PYLON, 0);
-						}
-						else {
-							candidate.insertItem(UnitId::PROTOSS_PYLON, i - 3);
-						}
-						if (!BOBuilder::enforcePrereqBySwap(candidate)) {
-							std::cout << "problem with swap prereq rule " << std::endl;
-						}
+						std::cout << "problem with swap prereq rule " << std::endl;
 					}
 					candidates.push_back(candidate);
-					candnames.push_back("Add Probe at index " + std::to_string(i));
+					//candnames.push_back("Add Probe at index " + std::to_string(i));
+
 					// find the next pylons and bring them forward one
 					for (int j = i + 2; j < e; j++) {
 						auto & act = candidate.getItems()[j];
 						if (act.getAction() == BUILD && act.getTarget() == UnitId::PROTOSS_PYLON) {
 							candidate.swapItems(j, j - 1);
 							candidates.push_back(candidate);
-							candnames.push_back("Add Probe at index " + std::to_string(i) + " and shift pylon at index " + std::to_string(j));							
+							//candnames.push_back("Add Probe at index " + std::to_string(i) + " and shift pylon at index " + std::to_string(j));							
 						}
 					}
 
@@ -285,7 +277,7 @@ namespace suboo {
 						auto candidate = base;
 						candidate.insertItem(pair.first, index);
 						candidates.push_back(candidate);
-						candnames.push_back("Add production " + builder.name + " at step " + std::to_string(index));
+						//candnames.push_back("Add production " + builder.name + " at step " + std::to_string(index));
 						ok = true;
 					}
 					index++;
@@ -315,14 +307,14 @@ namespace suboo {
 			}
 			if (bi.totalWait() == 0) {
 				BuildOrder bo = base;
-				std::stringstream sstr;
-				sstr << "swapping (" << i-1 << " :"; bo.getItems()[i-1].print(sstr);
-				sstr << ") and (" << i << " :"; bo.getItems()[i].print(sstr);
-				sstr << ")";
+				//std::stringstream sstr;
+				//sstr << "swapping (" << i-1 << " :"; bo.getItems()[i-1].print(sstr);
+				//sstr << ") and (" << i << " :"; bo.getItems()[i].print(sstr);
+				//sstr << ")";
 				bo.swapItems(i, i-1);
 
 				candidates.push_back(bo);
-				candindexes.push_back(sstr.str());
+				//candindexes.push_back(sstr.str());
 
 				if (bo.getItems()[i].totalWait() == 0) {
 					for (int j = i - 2; j >= 0; j--) {
@@ -332,14 +324,14 @@ namespace suboo {
 						}
 						else {
 							BuildOrder bo = base;
-							std::stringstream sstr;
-							sstr << "swapping (" << j << " :"; bo.getItems()[j].print(sstr);
-							sstr << ") and (" << i << " :"; bo.getItems()[i].print(sstr);
-							sstr << ")";
+							//std::stringstream sstr;
+							//sstr << "swapping (" << j << " :"; bo.getItems()[j].print(sstr);
+							//sstr << ") and (" << i << " :"; bo.getItems()[i].print(sstr);
+							//sstr << ")";
 							bo.swapItems(i, j);
 
 							candidates.push_back(bo);
-							candindexes.push_back(sstr.str());
+							//candindexes.push_back(sstr.str());
 							break;
 						}
 					}
@@ -370,7 +362,7 @@ namespace suboo {
 	std::pair<int, BuildOrder> AddProductionForceful::improve(const BuildOrder & base,int depth)
 	{
 		auto & tech = TechTree::getTechTree();
-		auto copy = base;
+		
 		std::map<UnitId, int> waitFor;
 		for (auto & bi : base.getItems()) {
 			if (bi.getAction() == BUILD) {
@@ -382,20 +374,25 @@ namespace suboo {
 				}
 			}
 		}
-		std::vector<BuildOrder> candidates;
-		std::vector<std::string > candindexes;
-		for (auto & pair : waitFor) {
+		std::vector<std::pair<UnitId, int> > pairs(waitFor.begin(), waitFor.end());
+		std::sort(pairs.begin(), pairs.end(), [](auto & a, auto & b) { return a.second > b.second; });
+		for (auto & pair : pairs) {
 			if (pair.second >= 30) {
+				auto copy = base;
 				copy.addItem(pair.first);
 				copy = BOBuilder::enforcePrereq(copy);
 				if (timeBO(copy)) {
 					if (depth >0)
 						copy = BOBuilder::improveBO(copy,depth-1);
+					std::vector<BuildOrder> candidates;
+					std::vector<std::string > candindexes;
 					candidates.push_back(copy);
-					candindexes.push_back("Forcefully add production :" + tech.getUnitById(pair.first).name);
+					//candindexes.push_back("Forcefully add production :" + tech.getUnitById(pair.first).name);
+					auto pai = findBest(base, candidates, candindexes);
+					if (pai.first > 0) return pai;
 				}
 			}
 		}
-		return findBest(base, candidates, candindexes);
+		return { 0,BuildOrder() };
 	}
 }
