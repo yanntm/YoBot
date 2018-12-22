@@ -95,6 +95,7 @@ namespace suboo {
 		int getTimeStamp() const { return timestamp; }
 		void print(std::ostream & out) const;
 		int countUnit(UnitId id) const;
+		int countFreeUnit(UnitId unit) const;
 	};
 
 	class TechTree {
