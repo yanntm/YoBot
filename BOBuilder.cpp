@@ -56,7 +56,10 @@ namespace suboo {
 		GameState state = tech.getInitial();
 		BuildOrder bopre;
 		std::unordered_set<UnitId> seen;
-		for (auto & u : state.getUnits()) {
+		for (auto & u : state.getFreeUnits()) {
+			seen.insert(u.type);
+		}
+		for (auto & u : state.getBusyUnits()) {
 			seen.insert(u.type);
 		}
 		int sz = bo.getItems().size();
@@ -117,7 +120,10 @@ namespace suboo {
 		GameState state = tech.getInitial();
 		BuildOrder bopre;
 		std::unordered_set<UnitId> seen;
-		for (auto & u : state.getUnits()) {
+		for (auto & u : state.getFreeUnits()) {
+			seen.insert(u.type);
+		}
+		for (auto & u : state.getBusyUnits()) {
 			seen.insert(u.type);
 		}
 		int vesp=0;
@@ -164,6 +170,7 @@ namespace suboo {
 		optimizers.emplace_back(new AddProduction());
 		optimizers.emplace_back(new LeftShifter());
 		fastoptimizers.emplace_back(new LeftShifter());
+		fastoptimizers.emplace_back(new RemoveExtra());
 		optimizers.emplace_back(new AddVespeneGatherer());
 		
 		
@@ -292,17 +299,23 @@ namespace suboo {
 				int soongas = 0;
 
 				int vcount =0;
-				for (auto & u : gs.getUnits()) {
+				for (auto & u : gs.getFreeUnits()) {
 					if (u.state == UnitInstance::MINING_VESPENE) {
 						vcount++;
 					}
 					else if (u.type == UnitId::PROTOSS_ASSIMILATOR && u.state == UnitInstance::FREE) {
 						gas++;
 					}
+				}
+				for (auto & u : gs.getBusyUnits()) {
+					if (u.state == UnitInstance::MINING_VESPENE) {
+						vcount++;
+					}
 					else if (u.type == UnitId::PROTOSS_ASSIMILATOR) {
 						soongas++;
 					}
 				}
+
 				if (vcount >= 3 * (gas+soongas)) {
 					std::cout << "Gas over saturated skipping \n";					
 					//gs.print(std::cout);
