@@ -179,7 +179,7 @@ namespace suboo {
 				}
 				else {
 					if (depth >0) {
-						candidate = BOBuilder::improveBO(candidate,depth -1);
+						candidate = BOBuilder::improveBO(candidate,std::min(depth-1,1));
 						if (timeBO(candidate)) {
 							//auto best = base;
 							//if (setBest(base,candidate))
@@ -351,7 +351,7 @@ namespace suboo {
 			copy = BOBuilder::enforcePrereq(copy);
 			if (timeBO(copy)) {
 				if (depth >0)
-					copy = BOBuilder::improveBO(copy, depth -1);
+					copy = BOBuilder::improveBO(copy, std::min(depth-1,1));
 				std::vector<BuildOrder> candidates;
 				candidates.push_back(copy);
 				return findBest(base, candidates, { "optimizedSaturation" });
@@ -376,6 +376,8 @@ namespace suboo {
 		}
 		std::vector<std::pair<UnitId, int> > pairs(waitFor.begin(), waitFor.end());
 		std::sort(pairs.begin(), pairs.end(), [](auto & a, auto & b) { return a.second > b.second; });
+		std::vector<BuildOrder> candidates;
+		std::vector<std::string > candindexes;
 		for (auto & pair : pairs) {
 			if (pair.second >= 30) {
 				auto copy = base;
@@ -383,16 +385,31 @@ namespace suboo {
 				copy = BOBuilder::enforcePrereq(copy);
 				if (timeBO(copy)) {
 					if (depth >0)
-						copy = BOBuilder::improveBO(copy,depth-1);
-					std::vector<BuildOrder> candidates;
-					std::vector<std::string > candindexes;
+						copy = BOBuilder::improveBO(copy,std::min(depth-1,3));
+					
 					candidates.push_back(copy);
 					//candindexes.push_back("Forcefully add production :" + tech.getUnitById(pair.first).name);
-					auto pai = findBest(base, candidates, candindexes);
-					if (pai.first > 0) return pai;
+					
 				}
 			}
 		}
-		return { 0,BuildOrder() };
+		return findBest(base, candidates, candindexes);		
+	}
+	std::pair<int, BuildOrder> RemoveExtra::improve(const BuildOrder & base, int depth)
+	{
+		std::vector<BuildOrder> candidates;
+		std::vector<std::string > candindexes;
+		int foodPer = TechTree::getTechTree().getUnitById(UnitId::PROTOSS_PYLON).food_provided;
+		if (base.getFinal().getAvailableSupply() > foodPer) {
+			auto bo = base;
+			// find last pylon
+			for (auto it = bo.getItems().begin() + (bo.getItems().size() - 1), e = bo.getItems().begin(); it != e; --it) {
+				if (it->getAction() == BUILD && it->getTarget() == UnitId::PROTOSS_PYLON) {
+					bo.getItems().erase(it);
+					break;
+				}
+			}
+		}
+		return std::pair<int, BuildOrder>();
 	}
 }
