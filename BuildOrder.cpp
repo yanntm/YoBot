@@ -115,13 +115,19 @@ namespace suboo {
 	}
 	float GameState::getMineralsPerSecond() const
 	{
+		int maxminers = countFreeUnit(UnitId::PROTOSS_NEXUS) * 20;
 		if (mps == -1.0) {
 			mps = 0;
+			int active = 0;
 			for (auto & u : units) {
 				if (u.type == UnitId::PROTOSS_PROBE && u.state == u.MINING_MINERALS) {
 					// 115 frames : 0,9739130435
 					mps += 0.896; // as measured for a RT average time of 125 frames
 					// 138 (3workers) : 0,8115942029
+					active++;
+					if (active == maxminers) {
+						break;
+					}
 				}
 			}
 		}
@@ -393,6 +399,10 @@ namespace suboo {
 	int GameState::countUnit(UnitId unit) const
 	{
 		return std::count_if(units.begin(), units.end(), [unit](auto & u) {return u.type == unit ; });
+	}
+	int GameState::countFreeUnit(UnitId unit) const
+	{
+		return std::count_if(units.begin(), units.end(), [unit](auto & u) {return u.type == unit && u.state == UnitInstance::FREE; });
 	}
 	UnitInstance::UnitInstance(UnitId type)
 		: type(type), state(FREE), time_to_free(0) 
