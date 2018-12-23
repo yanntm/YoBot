@@ -107,8 +107,6 @@ public:
 
 		//if (game_info.)
 		//choke = (.2f * target + .8f*nexus->pos);
-		
-
 		Actions()->UnitCommand(bob, ABILITY_ID::SMART, proxy);		
 
 		if (scout != nullptr) 
@@ -118,9 +116,9 @@ public:
 		harvesting.OnStep(probes, Observation(),YoActions(),false);
 
 
-		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
-		map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::nat));
-		map.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation());
+		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
+		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::nat));
+		placer.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation());
 	}
 
 	virtual void OnUnitCreated(const Unit* unit) final {
@@ -146,6 +144,7 @@ public:
 			//}
 			if (nexus == nullptr) {
 				nexus = unit;
+				proxy = nexus->pos;
 			}
 			harvesting.initialize(unit, map.resourcesPer[map.FindNearestBaseIndex(unit->pos)], Observation());
 			
@@ -163,11 +162,22 @@ public:
 					p += gw->pos;
 				}
 				sortByDistanceTo(pos, proxy);
+				auto width = Observation()->GetGameInfo().width;
 				auto center = defensePoint(map.FindNearestBase(gw->pos));
+				if (!Pathable(Observation()->GetGameInfo(), center)) {
+					center = Point2D(width / 2, Observation()->GetGameInfo().height / 2);
+					while (center.x < width && !Pathable(Observation()->GetGameInfo(), center)) {
+						center += Point2D(3.0, 0);
+					}
+				}
 				if (Pathable(Observation()->GetGameInfo(), center)) {
 					for (auto & p : pos) {
 						if (Pathable(Observation()->GetGameInfo(), p)) {
-							if (Query()->PathingDistance(p, center) != 0) {								
+							auto d = Query()->PathingDistance(p, center);
+#ifdef DEBUG
+							Debug()->DebugTextOut(std::to_string(d),Point3D(p.x,p.y,gw->pos.z+.1f));
+#endif
+							if (d > 0.1f) {								
 								Actions()->UnitCommand(gw, ABILITY_ID::RALLY_BUILDING, p);
 								break;
 							}
@@ -631,7 +641,12 @@ public:
 				move = true;
 			}
 			if (move || att >= CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) || nmy.size() >= 8) {
-				proxy = map.getPosition(MapTopology::ally, MapTopology::main);
+				if (nexus != nullptr) {
+					proxy = nexus->pos;
+				}
+				else {
+					proxy = map.getPosition(MapTopology::ally, MapTopology::main);
+				}
 			}
 		}
 		else if (scout == unit) {
@@ -710,11 +725,11 @@ public:
 		needCannons = true;
 		
 		frame++;
-		
+
 #ifdef DEBUG
 		{
-			
-			map.debugMap(Debug(),Observation());
+
+			map.debugMap(Debug(), Observation());
 
 			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, 0, 2.0f), Colors::Yellow);
 			Debug()->DebugTextOut("CURtarget", target + Point3D(0, 0, 2.0f), Colors::Yellow);
@@ -755,7 +770,7 @@ public:
 					continue;
 				}
 				Debug()->DebugSphereOut(u->pos + Point3D(0, 0, 0.2f), u->radius, Colors::Green);
-				float range = getRange(u,Observation()->GetUnitTypeData());
+				float range = getRange(u, Observation()->GetUnitTypeData());
 				if (range != 0) {
 					Debug()->DebugSphereOut(u->pos + Point3D(0, 0, 0.2f), range, Colors::Red);
 				}
@@ -763,9 +778,57 @@ public:
 
 			int enemies = estimateEnemyStrength();
 			Debug()->DebugTextOut("Current enemy :" + std::to_string(enemies));
-						
+			/*
+			float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), {});
+
+			for (auto & gw : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || u.unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY; })) {
+				auto direction = proxy - gw->pos;
+				direction /= Distance2D(Point2D(0, 0), direction);
+				// point towards open spot
+				std::vector < Point2D > pos = { {-2,2},{0,2}, {2,2},
+												{-2,0},		  {2,0},
+												{-2,-2},{0,-2}, {2,-2} };
+				for (auto & p : pos) {
+					p += gw->pos;
+				}
+				sortByDistanceTo(pos, proxy);
+				auto width = Observation()->GetGameInfo().width;
+				auto center = defensePoint(map.FindNearestBase(gw->pos));
+				if (!Pathable(Observation()->GetGameInfo(), center)) {
+					center = Point2D(width / 2, Observation()->GetGameInfo().height / 2);
+					while (center.x < width && !Pathable(Observation()->GetGameInfo(), center)) {
+						center += Point2D(3.0, 0);
+					}
+				}
+				if (Pathable(Observation()->GetGameInfo(), center)) {
+					for (auto & p : pos) {
+						if (Pathable(Observation()->GetGameInfo(), p)) {
+							auto d = Query()->PathingDistance(p, center);
+							auto path = AstarSearchPath(p, center, Observation()->GetGameInfo(), weights);
+							map.debugPath(path, Debug(), Observation());
+							auto color = Colors::Red;
+							if (d > 0.1f) {
+								color = Colors::Green;
+							}
+							if (path.empty()) {
+								color = Colors::Purple;
+							}
+#ifdef DEBUG
+							Debug()->DebugTextOut(std::to_string(d), Point3D(p.x, p.y, gw->pos.z + .1f), color);
+							Debug()->DebugTextOut(std::to_string(path.size()), Point3D(p.x, p.y - .2f, gw->pos.z + .1f), color);
+#endif
+
+						}
+					}
+				}
+			}
+			if (frame % 50 == 0) {
+				placer.debug(Debug(), Observation());
+				pokeMap();
+			}
+			*/
 			Debug()->SendDebug();
-			
+
 
 			//sc2::SleepFor(20);
 
@@ -848,7 +911,7 @@ public:
 
 						if (minerals >= 100 && pylons.size() < 5) {
 							for (auto & p : v) {
-								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p) && map.PlacementB(Observation()->GetGameInfo(),p,2)) {
+								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p) && placer.PlacementB(Observation()->GetGameInfo(),p,2)) {
 									
 									float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
 									auto path = AstarSearchPath(scout->pos, map.FindHardPointsInMinerals(map.getExpansionIndex(map.enemy, map.main))[0], Observation()->GetGameInfo(), weights);
@@ -1038,7 +1101,7 @@ public:
 			for (auto & strat : harvesting.getChildren()) {
 				if (strat.getCurrentHarvesters() >= 17) {					
 					auto & pos = strat.getPylonPos();
-					if (map.PlacementB(Observation()->GetGameInfo(),pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
+					if (placer.PlacementB(Observation()->GetGameInfo(),pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
 						auto  p = FindNearestUnit(pos,probs);
 						Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
 						Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos,true);
@@ -1055,7 +1118,7 @@ public:
 		}
 		// we get undesirable double commands if we do this each frame
 		if (frame % 3 == 0) {
-			TryBuildSupplyDepot(pylons, evading);
+			TryBuildSupplyDepot(pylons, evading, harvesters);
 			TryBuildBarracks(pylons, evading, harvesters);			
 		}
 		TryBuildUnits();
@@ -1124,7 +1187,7 @@ public:
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
 			if (Query()->Placement(ABILITY_ID::BUILD_NEXUS,proxy)) {
 				Actions()->UnitCommand(bob, ABILITY_ID::BUILD_NEXUS, proxy,true);
-				map.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::proxy));
+				placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::proxy));
 			}
 			// basic counting bob as harvester should be enough
 //			if (bob->orders.empty() || none_of(bob->orders.begin(), bob->orders.end(), [](const auto & o) { return  o.ability_id == ABILITY_ID::HARVEST_GATHER || o.ability_id == ABILITY_ID::HARVEST_RETURN; })) {
@@ -1804,7 +1867,7 @@ private:
 			
 			auto & points = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(nexus->pos));
 			auto p = points[0];
-			if (Query()->Placement(tobuild, p) && map.PlacementB(Observation()->GetGameInfo(),p,2)) {
+			if (Query()->Placement(tobuild, p) && placer.PlacementB(Observation()->GetGameInfo(),p,2)) {
 				Actions()->UnitCommand(builder, tobuild, p);
 				return true;
 			} 
@@ -1824,27 +1887,70 @@ private:
 		return false;
 	}
 
-	bool TryBuildSupplyDepot(const Units & pylons, bool evading =false) {
+	bool TryBuildSupplyDepot(const Units & pylons,  bool evading, std::unordered_set<Tag> & harvesters) {
 		const ObservationInterface* observation = Observation();
 		if (minerals < 100) {
 			return false;
 		}
+		auto tobuild = ABILITY_ID::BUILD_PYLON;
 		// Try and build a depot. Find a random SCV and give it the order.
-		const Unit* unit_to_build = bob;
-		if (bob == nullptr || YoActions()->isBusy(bob->tag)) {
-			return false;
+		const Unit * unit_to_build=nullptr;
+		// If a unit already is building a supply structure of this type, do nothing.
+		// Also get an scv to build the structure.
+		if (minerals >= 400) {
+			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+			//auto it = find(probes.begin(), probes.end(), bob);
+			//if (it != probes.end()) {
+			//	probes.erase(it);
+			//}
+			if (any_of(probes.begin(), probes.end(), [&](const auto & p)
+			{
+				return any_of(p->orders.begin(), p->orders.end(), [&](const auto & o)
+				{ return o.ability_id == tobuild; });
+			})) {
+				return false;
+			}
+			if (nexus == nullptr || probes.empty()) {
+				return false;
+			}
+			sortByDistanceTo(probes, nexus->pos);
+			for (auto & p : probes) {
+				if (YoActions()->isBusy(p->tag)) {
+					continue;
+				}
+				else {
+					unit_to_build = p;
+					break;
+				}
+			}
+			if (unit_to_build == nullptr) {
+				return false;
+			}
+			harvesters.erase(unit_to_build->tag);
 		}
+		else {
+			if (bob == nullptr) {
+				return false;
+			}
 
-		if ((pylons.size() == 0 || (pylons.size() == 1 && Distance2D(pylons.front()->pos, proxy) > 5) ) ){
-			minerals -= 100;
-			auto v = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy));		
-			sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
-			for (auto & pos : v) {
-				if (map.PlacementB(observation->GetGameInfo(), pos, 2)) {
-					Actions()->UnitCommand(bob,
-						ABILITY_ID::BUILD_PYLON,
-						pos);
-					return true;
+			if (orderBusy(bob)) {
+				return false;
+			}
+			unit_to_build = bob;
+		}
+		
+		if (unit_to_build == bob) {
+			if ((pylons.size() == 0 || (pylons.size() == 1 && Distance2D(pylons.front()->pos, proxy) > 5))) {
+				minerals -= 100;
+				auto v = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy));
+				sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
+				for (auto & pos : v) {
+					if (placer.PlacementB(observation->GetGameInfo(), pos, 2)) {
+						Actions()->UnitCommand(bob,
+							ABILITY_ID::BUILD_PYLON,
+							pos);
+						return true;
+					}
 				}
 			}
 		}
@@ -1884,12 +1990,11 @@ private:
 				return false;
 			}
 		}
-				
-		for (const auto& order : bob->orders) {
-			if (order.ability_id == ABILITY_ID::BUILD_PYLON) {
-				return false;
-			}
+			
+		if (orderBusy(unit_to_build)) {
+			return false;
 		}
+		
 		float rx = GetRandomScalar();
 		float ry = GetRandomScalar();
 
@@ -1908,7 +2013,7 @@ private:
 							rx = GetRandomScalar();
 							ry = GetRandomScalar();
 							auto candidate = Point2D(gw->pos.x + rx * 5.0f, gw->pos.y + ry * 5.0f);
-							if (map.PlacementB(Observation()->GetGameInfo(), candidate,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
+							if (placer.PlacementB(Observation()->GetGameInfo(), candidate,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
 								Actions()->UnitCommand(unit_to_build,
 									ABILITY_ID::MOVE,
 									candidate);
@@ -1930,7 +2035,7 @@ private:
 					std::vector<Point2D> targets = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(bob->pos));
 					sortByDistanceTo(targets, bob->pos);
 					for (auto & p : targets) {
-						if (Distance2D(p, bob->pos) < 18.0f && map.PlacementB(observation->GetGameInfo(), p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
+						if (Distance2D(p, bob->pos) < 18.0f && placer.PlacementB(observation->GetGameInfo(), p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
 							candidate = p;
 							good = true;
 							break;
@@ -1944,7 +2049,7 @@ private:
 				}
 				while (!good && iter++ < 25) {
 
-					if (map.PlacementB(Observation()->GetGameInfo(), candidate,2)) {
+					if (placer.PlacementB(Observation()->GetGameInfo(), candidate,2)) {
 
 						std::vector<sc2::QueryInterface::PlacementQuery> queries;
 						queries.reserve(5);
@@ -2011,7 +2116,7 @@ private:
 				int iter = 0;
 				while (!good && iter++ < 25) {
 
-					if (map.PlacementB(Observation()->GetGameInfo(), candidate, 3)) {
+					if (placer.PlacementB(Observation()->GetGameInfo(), candidate, 3)) {
 						std::vector<sc2::QueryInterface::PlacementQuery> queries;
 						queries.reserve(5);
 						queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate));
@@ -2191,7 +2296,7 @@ private:
 			auto q = Query();
 			auto resp = q->Placement(queries);
 			for (int i = 0; i < 4; i++) {
-				if (resp[i] && map.PlacementB(info,cands[i],3)) {
+				if (resp[i] && placer.PlacementB(info,cands[i],3)) {
 					Actions()->UnitCommand(builder,
 						tobuild,
 						cands[i]);
@@ -2206,7 +2311,7 @@ private:
 			float rx = GetRandomScalar();
 			float ry = GetRandomScalar();		
 			Point2D candidate = Point2D(builder->pos.x + rx * maxdist, builder->pos.y + ry * maxdist);
-			if (!map.PlacementB(info, candidate,3)) {
+			if (!placer.PlacementB(info, candidate,3)) {
 				continue;
 			}
 			std::vector<sc2::QueryInterface::PlacementQuery> queries;
