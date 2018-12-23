@@ -578,7 +578,12 @@ public:
 				OnUnitIdle(scout);
 			}
 		}
-		
+		else {
+			auto & home = map.getPosition(map.ally, map.main);
+			if (IsCommandStructure(u->unit_type) && Distance2D(home, u->pos) < Distance2D(target, home)) {
+				target = u->pos;
+			}
+		}
 		
 		if (next >= 5 && cur < 5) {
 			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
@@ -1059,16 +1064,26 @@ public:
 		if (estimated == 0) {
 			criticalZeal = 0;
 		} else {
-			criticalZeal = 7;
+			criticalZeal = std::max(7, Observation()->GetFoodUsed() / 5);
 		}
-		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodWorkers() < 5 && staticd < 4* Observation()->GetArmyCount()) {
+		if (Observation()->GetArmyCount() >= criticalZeal) {
 			const GameInfo& game_info = Observation()->GetGameInfo();			
-			
+			auto tg = target;
+			if (target == proxy) {
+				tg = defensePoint(proxy);
+			}
+
 			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return IsArmyUnitType(u.unit_type); })) {
 				if (unit->orders.size() == 0 && !YoActions()->isBusy(unit->tag)) {
 					if (Distance2D(unit->pos, target) < 15.0f) {
 						target = proxy;
-						auto list = Observation()->GetUnits(Unit::Alliance::Enemy, [](const auto & u) { return IsBuilding(u.unit_type) && ! u.is_flying; });
+						Units list;
+						for (auto & p : allEnemies()) {
+							auto & u = p.second;
+							if (IsBuilding(u->unit_type) && !u->is_flying) {
+								list.push_back(u);
+							}
+						}
 						if (list.size() != 0) {
 							int targetU = GetRandomInteger(0, list.size() - 1);
 							if (!list[targetU]->is_flying) {
@@ -1082,10 +1097,28 @@ public:
 						}
 					}
 					else {
-						OnUnitIdle(unit);						
+						if (Distance2D(unit->pos, tg) < 8.0f) {
+							OnUnitHasAttacked(unit);
+						}
+						else {
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+						}						
 					}
 				}
 			}			
+		}
+		else {
+			auto tg = defensePoint(proxy);
+			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return IsArmyUnitType(u.unit_type); })) {
+				if (unit->orders.size() == 0 && !YoActions()->isBusy(unit->tag)) {
+					if (Distance2D(unit->pos, tg) < 8.0f) {
+						OnUnitHasAttacked(unit);
+					}
+					else {
+						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+					}
+				}
+			}
 		}
 		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0 && !YoActions()->isBusy(bob->tag)) {
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
@@ -1489,6 +1522,8 @@ public:
 			//				Actions()->UnitCommand(unit, ABILITY_ID::TRAIN_ZEALOT);
 			break;
 		}
+		case UNIT_TYPEID::PROTOSS_ADEPT:
+		case UNIT_TYPEID::PROTOSS_IMMORTAL: 
 		case UNIT_TYPEID::PROTOSS_ZEALOT: {
 			if (Observation()->GetArmyCount() >= criticalZeal && staticd < 4 * Observation()->GetArmyCount()) {
 				const GameInfo& game_info = Observation()->GetGameInfo();
