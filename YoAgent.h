@@ -7,6 +7,7 @@
 #include "sc2lib/sc2_lib.h"
 
 #include "MapTopology.h"
+#include "Placement.h"
 #include <deque>
 #include <unordered_map>
 
@@ -40,6 +41,7 @@ public :
 	void initialize() {
 		actions = new sc2::YoAction(sc2::Agent::Actions());
 		map.init(Observation(), Query(), Debug());
+		placer.init(Observation(), Query(), &map, Debug());
 	}
 	sc2::ActionInterface * Actions() {
 		return actions;
@@ -77,6 +79,7 @@ public :
 	const UnitsMap & allEnemies() const;
 protected :
 	MapTopology map;
+	BuildingPlacer placer;
 	std::deque<Order> orders;
 	int minerals = 0;
 	int gas = 0;
