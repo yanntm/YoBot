@@ -13,8 +13,7 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 {
 	const GameInfo& game_info = initial->GetGameInfo();
 	this->width = game_info.width;
-	this->height = game_info.height;
-	this->reserved = vector<int>(height*width, 0);
+	this->height = game_info.height;	
 
 	// compute a good place to put a nexus on the map : minerals and gas
 	{
@@ -298,29 +297,7 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 		
 	}
 	
-	// kinda costly, disabled by default
-	if (false) {
-		int res = 0;
-		for (int x = 0; x < width; x++) {
-			for (int y = 0; y < height; y++) {
-				if (reserved[y*width + x]) {
-					
-					// auto z = expansions[FindNearestBaseIndex(Point2D(x, y))].z;
-					auto z = obs->TerrainHeight(Point2D(x, y));
-					auto len = to_string(z);
-					len.erase(len.length() - 4);
-					auto col = Colors::Red;
-					if (Pathable(obs->GetGameInfo(), Point2D(x, y))) {
-						col = Colors::Green;
-					}
-					//debug->DebugTextOut(len, Point3D(x + .5, y + .5, z + .3f), col);
-					debug->DebugBoxOut(Point3D(x, y, z), Point3D(x + 1, y + 1, z + .3f), col);
-					res++;
-				}
-			}
-		}
-		debug->DebugTextOut("Reserved :" + to_string(res));
-	}
+
 	
 
 	for (size_t startloc = 0, max = mainBases.size(); startloc < max; startloc++) {
@@ -553,7 +530,7 @@ std::vector<Point2D> MapTopology::ComputeHardPointsInMinerals(int expansionIndex
 #endif
 			auto d = Distance2D(expansions[expansionIndex], min->pos);
 			for (auto & p : adj) {
-				if (Placement(info, p) && Distance2D(expansions[expansionIndex], p) >= d - .8f) {
+				if (query->Placement(ABILITY_ID::BUILD_PYLON, p) && Distance2D(expansions[expansionIndex], p) >= d - .8f) {
 					auto it = find(chosen.begin(), chosen.end(), p);
 					if (it != chosen.end()) {
 						elected.push_back(p);						
@@ -697,89 +674,6 @@ std::vector<std::pair<Point3D, Units > > MapTopology::CalculateExpansionLocation
 	}
 
 	return expansion_locations;
-}
-
-bool MapTopology::Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const
-{
-	return PlacementI(info, sc2::Point2DI((int)point.x, (int)point.y));
-}
-
-
-bool  MapTopology::PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const
-{
-	if (pointI.x < 0 || pointI.x >= width || pointI.y < 0 || pointI.y >= height)
-	{
-		return false;
-	}
-	if (reserved[pointI.y*width + pointI.x]) {
-		return false;
-	}
-	unsigned char encodedPlacement = info.placement_grid.data[pointI.x + ((height - 1) - pointI.y) * width];
-	bool decodedPlacement = encodedPlacement == 255 ? true : false;
-	return decodedPlacement;
-}
-
-bool MapTopology::PlacementB(const sc2::GameInfo & info, const sc2::Point2D & point, int footprint) const
-{
-	auto inzone = sc2::Point2DI((int)point.x, (int)point.y);
-	for (int x = 0; x < footprint; x++) {
-		for (int y = 0; y < footprint; y++) {
-			if (! PlacementI(info, Point2DI(inzone.x + x, inzone.y + y))) {
-				return false;
-			}
-		}
-	}
-	return true;
-}
-
-void MapTopology::reserve(const sc2::Point2D & point)
-{
-	auto p = sc2::Point2DI((int)point.x, (int)point.y);
-	reserved[p.y*width + p.x] = true;
-}
-
-void MapTopology::reserveVector(const Point2D & start, const Point2D & vec) {
-	auto vnorm = vec;
-	auto len = Distance2D(vnorm, { 0,0 });
-	vnorm /= len;
-	for (float f = 2; f < len; f += .25) {
-		auto torem = start + vnorm * f;
-		reserve(torem);
-		reserve(torem + Point2D(1, 0));
-		reserve(torem + Point2D(0, 1));
-		reserve(torem + Point2D(-1, 0));
-		reserve(torem + Point2D(0, -1));
-	}
-}
-
-void MapTopology::reserve(int expIndex)
-{
-	for (auto & r : resourcesPer[expIndex]) {
-		auto cc = expansions[expIndex];
-		reserveVector(cc, (r->pos - cc));
-	}
-}
-
-void MapTopology::reserveCliffSensitive(int expIndex, const ObservationInterface * obs)
-{	
-	auto info = obs->GetGameInfo();
-	// scan tiles of the expansion (within 15.0), discard any that are within 5.0 of a cliff
-	auto center = expansions[expIndex];
-	int hx = center.x;
-	int hy = center.y;
-	auto h = obs->TerrainHeight(center);
-	for (int i = -15; i <= 15; i++) {
-		for (int j = -15; j <= 15; j++) {
-			auto p = Point2D(hx + i, hy + j);
-			if (obs->TerrainHeight(p) > h &&  Pathable(info, p)) {
-				auto vec = center - p;
-				auto vl = Distance2D(vec, Point2D(0,0));
-				vec /= vl;
-				vec *= 5;
-				reserveVector(p, vec);
-			}
-		}
-	}
 }
 
 namespace sc2util {
