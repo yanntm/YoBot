@@ -3,6 +3,7 @@
 #include "sc2api/sc2_interfaces.h"
 #include "UnitTypes.h"
 #include "MapTopology.h"
+#include "Placement.h"
 #include <iostream>
 #include <fstream>
 
@@ -24,7 +25,8 @@ void suboo::TechBot::OnGameStart()
 
 	MapTopology map;
 	map.init(Observation(), Query(), Debug());
-
+	BuildingPlacer placer;
+	placer.init(Observation(), Query(), &map, Debug());
 	auto & info = Observation()->GetGameInfo();
 
 	// inspect and create an initial state
@@ -44,7 +46,7 @@ void suboo::TechBot::OnGameStart()
 	for (const sc2::UnitTypeData & unitdesc : types) {
 		if (isRelevant(unitdesc, {})) {
 			point = point + sc2::Point3D(3, 0, 0);
-			while (! map.PlacementB(info, point,3)) {
+			while (! placer.PlacementB(info, point,3)) {
 				point = point + sc2::Point3D(3, 0, 0);
 				if (point.x >= info.width) {
 					point = sc2::Point3D(0, point.y + 3, 0);
