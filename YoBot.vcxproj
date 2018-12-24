@@ -190,6 +190,7 @@
     <ClCompile Include="DistUtil.cpp" />
     <ClCompile Include="HarvesterStrategy.cpp" />
     <ClCompile Include="MapTopology.cpp" />
+    <ClCompile Include="Placement.cpp" />
     <ClCompile Include="Snippets.cpp" />
     <ClCompile Include="Astar.cpp" />
     <ClCompile Include="TechBot.cpp" />
@@ -207,6 +208,7 @@
     <ClInclude Include="AStar.h" />
     <ClInclude Include="MapTopology.h" />
     <ClInclude Include="BuildOrder.h" />
+    <ClInclude Include="Placement.h" />
     <ClInclude Include="TechBot.h" />
     <ClInclude Include="UnitTypes.h" />
     <ClInclude Include="LadderInterface.h" />
