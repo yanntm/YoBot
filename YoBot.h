@@ -1129,7 +1129,7 @@ public:
 		} else {
 			criticalZeal = std::max(7, Observation()->GetFoodUsed() / 5);
 		}
-		if (Observation()->GetArmyCount() >= criticalZeal) {
+		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195) {
 			const GameInfo& game_info = Observation()->GetGameInfo();			
 			auto tg = target;
 			if (target == proxy) {
@@ -1588,7 +1588,7 @@ public:
 		case UNIT_TYPEID::PROTOSS_ADEPT:
 		case UNIT_TYPEID::PROTOSS_IMMORTAL: 
 		case UNIT_TYPEID::PROTOSS_ZEALOT: {
-			if (Observation()->GetArmyCount() >= criticalZeal && staticd < 4 * Observation()->GetArmyCount()) {
+			if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195 /*&& staticd < 4 * Observation()->GetArmyCount()*/) {
 				const GameInfo& game_info = Observation()->GetGameInfo();
 				auto tg = target;
 				if (target == proxy) {
@@ -1660,17 +1660,20 @@ private:
 	}
 
 	void TryBuildUnits() {
-		for (auto & nexus : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS))) {
-			if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50 && !YoActions()->isBusy(nexus->tag)) {
-				auto cur = harvesting.getCurrentHarvesters();
-				// 85 probes is plenty
-				if (cur < harvesting.getIdealHarvesters() && cur < 85) {
-					Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
-					if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
-						Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus,true);
+		auto & probs = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
+		if (probs.size() < 85) {
+			for (auto & nexus : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS))) {
+				if (nexus != nullptr && nexus->orders.empty() && supplyleft >= 1 && minerals >= 50 && !YoActions()->isBusy(nexus->tag)) {
+					auto cur = harvesting.getCurrentHarvesters();
+					// 85 probes is plenty
+					if (cur < harvesting.getIdealHarvesters()) {
+						Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE);
+						if (nexus->energy >= 50 && supplyleft > 1 && harvesting.getCurrentHarvesters() < 16) {
+							Actions()->UnitCommand(nexus, (ABILITY_ID)3755, nexus, true);
+						}
+						minerals -= 50;
+						supplyleft -= 1;
 					}
-					minerals -= 50;
-					supplyleft -= 1;
 				}
 			}
 		}
