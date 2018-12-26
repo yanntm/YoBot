@@ -11,6 +11,7 @@ https://github.com/hjweide/a-star/
 #include "AStar.h"
 #include "YoAgent.h"
 #include "UnitTypes.h"
+#include "Pathing.h"
 
 using namespace sc2util;
 using namespace std;
