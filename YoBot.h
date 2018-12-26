@@ -10,6 +10,7 @@
 #include "YoAgent.h"
 #include "HarvesterStrategy.h"
 #include "AStar.h"
+#include "Pathing.h"
 #include <valarray>
 #include <unordered_set>
 #include <iostream>
@@ -45,15 +46,9 @@ public:
 		auto probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 		bob = probes.back();
 		probes.pop_back();
-		
-		
-		const GameInfo& game_info = Observation()->GetGameInfo();
-		
-		
-
-
+					
 		auto playerID = Observation()->GetPlayerID();
-		for (const auto & playerInfo : Observation()->GetGameInfo().player_info)
+		for (const auto & playerInfo : info.player_info)
 		{
 			if (playerInfo.player_id != playerID)
 			{
@@ -64,12 +59,12 @@ public:
 
 
 
-		if (game_info.enemy_start_locations.size() > 1) {
-			proxy = cog(game_info.enemy_start_locations);
+		if (info.enemy_start_locations.size() > 1) {
+			proxy = cog(info.enemy_start_locations);
 			scout = *(++Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE)).begin());
 			// return minerals
 			Actions()->UnitCommand(scout, ABILITY_ID::SMART, nexus, true);
-			Actions()->UnitCommand(scout, ABILITY_ID::SMART, game_info.enemy_start_locations[0], true);			
+			Actions()->UnitCommand(scout, ABILITY_ID::SMART, info.enemy_start_locations[0], true);
 			scouted = 0;
 			target = proxy;
 		}
@@ -118,10 +113,11 @@ public:
 
 		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
 		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::nat));
-		placer.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation());
+		placer.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation(),info);
 	}
 
 	virtual void OnUnitCreated(const Unit* unit) final {
+		YoAgent::OnUnitCreated(unit);
 		if (IsArmyUnitType(unit->unit_type)) {						
 			if (unit->unit_type == UNIT_TYPEID::PROTOSS_VOIDRAY) {
 				for (auto u : allEnemies()) {
@@ -162,17 +158,17 @@ public:
 					p += gw->pos;
 				}
 				sortByDistanceTo(pos, proxy);
-				auto width = Observation()->GetGameInfo().width;
+				auto width = info.width;
 				auto center = defensePoint(map.FindNearestBase(gw->pos));
-				if (!Pathable(Observation()->GetGameInfo(), center)) {
-					center = Point2D(width / 2, Observation()->GetGameInfo().height / 2);
-					while (center.x < width && !Pathable(Observation()->GetGameInfo(), center)) {
+				if (!Pathable(info, center)) {
+					center = Point2D(width / 2, info.height / 2);
+					while (center.x < width && !Pathable(info, center)) {
 						center += Point2D(3.0, 0);
 					}
 				}
-				if (Pathable(Observation()->GetGameInfo(), center)) {
+				if (Pathable(info, center)) {
 					for (auto & p : pos) {
-						if (Pathable(Observation()->GetGameInfo(), p)) {
+						if (Pathable(info, p)) {
 							auto d = Query()->PathingDistance(p, center);
 #ifdef DEBUG
 							Debug()->DebugTextOut(std::to_string(d),Point3D(p.x,p.y,gw->pos.z+.1f));
@@ -206,7 +202,7 @@ public:
 			auto targets = FindEnemiesInRange(unit->pos, 15);
 
 			bool isToss = true;
-			for (auto r : Observation()->GetGameInfo().player_info) {
+			for (auto r : info.player_info) {
 				if (r.race_requested != Protoss) {
 					isToss = false;
 					break;
@@ -705,9 +701,7 @@ public:
 	}
 
 
-	std::vector<Point2D> findLocationsForBuilding(Point2D pos, int floorsize, int radius) {
-		const GameInfo& game_info = Observation()->GetGameInfo();
-		 
+	std::vector<Point2D> findLocationsForBuilding(Point2D pos, int floorsize, int radius) { 
 		std::vector<Point2D> vec;
 
 		return vec;
@@ -779,7 +773,7 @@ public:
 			int enemies = estimateEnemyStrength();
 			Debug()->DebugTextOut("Current enemy :" + std::to_string(enemies));
 			/*
-			float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), {});
+			float * weights = computeWeightMap(info, Observation()->GetUnitTypeData(), {});
 
 			for (auto & gw : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_GATEWAY || u.unit_type == UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY; })) {
 				auto direction = proxy - gw->pos;
@@ -792,19 +786,19 @@ public:
 					p += gw->pos;
 				}
 				sortByDistanceTo(pos, proxy);
-				auto width = Observation()->GetGameInfo().width;
+				auto width = info.width;
 				auto center = defensePoint(map.FindNearestBase(gw->pos));
-				if (!Pathable(Observation()->GetGameInfo(), center)) {
-					center = Point2D(width / 2, Observation()->GetGameInfo().height / 2);
-					while (center.x < width && !Pathable(Observation()->GetGameInfo(), center)) {
+				if (!Pathable(info, center)) {
+					center = Point2D(width / 2, info.height / 2);
+					while (center.x < width && !Pathable(info, center)) {
 						center += Point2D(3.0, 0);
 					}
 				}
-				if (Pathable(Observation()->GetGameInfo(), center)) {
+				if (Pathable(info, center)) {
 					for (auto & p : pos) {
-						if (Pathable(Observation()->GetGameInfo(), p)) {
+						if (Pathable(info, p)) {
 							auto d = Query()->PathingDistance(p, center);
-							auto path = AstarSearchPath(p, center, Observation()->GetGameInfo(), weights);
+							auto path = AstarSearchPath(p, center, info, weights);
 							map.debugPath(path, Debug(), Observation());
 							auto color = Colors::Red;
 							if (d > 0.1f) {
@@ -823,8 +817,8 @@ public:
 				}
 			}
 			if (frame % 50 == 0) {
-				placer.debug(Debug(), Observation());
-				pokeMap();
+				placer.debug(Debug(), Observation(),info);
+				//pokeMap();
 			}
 			*/
 			Debug()->SendDebug();
@@ -880,8 +874,8 @@ public:
 				auto d = Distance2D(bob->pos, proxy);
 				if (d > 15.0f && d < 25.0f) {
 
-					float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
-					auto path = AstarSearchPath(bob->pos, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0], Observation()->GetGameInfo(), weights);
+					float * weights = computeWeightMap(info, Observation()->GetUnitTypeData(), allEnemies());
+					auto path = AstarSearchPath(bob->pos, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0], info, weights);
 #ifdef DEBUG
 					map.debugPath(path, Debug(), Observation());
 #endif
@@ -911,10 +905,10 @@ public:
 
 						if (minerals >= 100 && pylons.size() < 5) {
 							for (auto & p : v) {
-								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p) && placer.PlacementB(Observation()->GetGameInfo(),p,2)) {
+								if (Query()->Placement(ABILITY_ID::BUILD_PYLON, p) && placer.PlacementB(info,p,2)) {
 									
-									float * weights = computeWeightMap(Observation()->GetGameInfo(), Observation()->GetUnitTypeData(), allEnemies());
-									auto path = AstarSearchPath(scout->pos, map.FindHardPointsInMinerals(map.getExpansionIndex(map.enemy, map.main))[0], Observation()->GetGameInfo(), weights);
+									float * weights = computeWeightMap(info, Observation()->GetUnitTypeData(), allEnemies());
+									auto path = AstarSearchPath(scout->pos, map.FindHardPointsInMinerals(map.getExpansionIndex(map.enemy, map.main))[0], info, weights);
 #ifdef DEBUG
 									map.debugPath(path, Debug(), Observation());
 #endif
@@ -1101,7 +1095,7 @@ public:
 			for (auto & strat : harvesting.getChildren()) {
 				if (strat.getCurrentHarvesters() >= 17) {					
 					auto & pos = strat.getPylonPos();
-					if (placer.PlacementB(Observation()->GetGameInfo(),pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
+					if (placer.PlacementB(info,pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
 						auto  p = FindNearestUnit(pos,probs);
 						Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
 						Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos,true);
@@ -1129,8 +1123,7 @@ public:
 		} else {
 			criticalZeal = std::max(7, Observation()->GetFoodUsed() / 5);
 		}
-		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195) {
-			const GameInfo& game_info = Observation()->GetGameInfo();			
+		if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195) {						
 			auto tg = target;
 			if (target == proxy) {
 				tg = defensePoint(proxy);
@@ -1526,14 +1519,14 @@ public:
 	virtual void OnUnitIdle(const Unit* unit) final {
 		if (unit == scout) {
 			
-			if (Observation()->GetGameInfo().enemy_start_locations.size() > 1) {
+			if (info.enemy_start_locations.size() > 1) {
 				if (proxy != target && nexus != nullptr) {
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
 					scout = nullptr;
 				}
 				else {
 					int s = 0;
-					for (const auto & pos : Observation()->GetGameInfo().enemy_start_locations) {
+					for (const auto & pos : info.enemy_start_locations) {
 						auto vis = Observation()->GetVisibility(pos);
 						if (vis == sc2::Visibility::Fogged || vis == sc2::Visibility::Visible) {
 							s++;
@@ -1541,13 +1534,13 @@ public:
 					}
 
 					//scouted++;
-					if (s == Observation()->GetGameInfo().enemy_start_locations.size() - 1 && nexus != nullptr) {
-						target = Observation()->GetGameInfo().enemy_start_locations[s];
+					if (s == info.enemy_start_locations.size() - 1 && nexus != nullptr) {
+						target = info.enemy_start_locations[s];
 						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(nexus->pos), false);
 						scout = nullptr;
 					}
 					else {
-						Actions()->UnitCommand(unit, ABILITY_ID::SMART, Observation()->GetGameInfo().enemy_start_locations[s], false);
+						Actions()->UnitCommand(unit, ABILITY_ID::SMART, info.enemy_start_locations[s], false);
 					}
 				}
 				return;
@@ -1565,7 +1558,7 @@ public:
 				sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
 				std::reverse(v.begin(), v.end());
 				for (auto p : v) {
-					if (Pathable(Observation()->GetGameInfo(), p)) {
+					if (Pathable(info, p)) {
 						Actions()->UnitCommand(unit, ABILITY_ID::PATROL, p);
 						break;
 					}
@@ -1588,8 +1581,7 @@ public:
 		case UNIT_TYPEID::PROTOSS_ADEPT:
 		case UNIT_TYPEID::PROTOSS_IMMORTAL: 
 		case UNIT_TYPEID::PROTOSS_ZEALOT: {
-			if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195 /*&& staticd < 4 * Observation()->GetArmyCount()*/) {
-				const GameInfo& game_info = Observation()->GetGameInfo();
+			if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195 /*&& staticd < 4 * Observation()->GetArmyCount()*/) {				
 				auto tg = target;
 				if (target == proxy) {
 					tg = defensePoint(proxy);
@@ -1870,7 +1862,7 @@ private:
 			
 			auto & points = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(nexus->pos));
 			auto p = points[0];
-			if (Query()->Placement(tobuild, p) && placer.PlacementB(Observation()->GetGameInfo(),p,2)) {
+			if (Query()->Placement(tobuild, p) && placer.PlacementB(info,p,2)) {
 				Actions()->UnitCommand(builder, tobuild, p);
 				return true;
 			} 
@@ -1948,7 +1940,7 @@ private:
 				auto v = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy));
 				sortByDistanceTo(v, map.getPosition(MapTopology::enemy, MapTopology::main));
 				for (auto & pos : v) {
-					if (placer.PlacementB(observation->GetGameInfo(), pos, 2)) {
+					if (placer.PlacementB(info, pos, 2)) {
 						Actions()->UnitCommand(bob,
 							ABILITY_ID::BUILD_PYLON,
 							pos);
@@ -2016,7 +2008,7 @@ private:
 							rx = GetRandomScalar();
 							ry = GetRandomScalar();
 							auto candidate = Point2D(gw->pos.x + rx * 5.0f, gw->pos.y + ry * 5.0f);
-							if (placer.PlacementB(Observation()->GetGameInfo(), candidate,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
+							if (placer.PlacementB(info, candidate,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, candidate)) {
 								Actions()->UnitCommand(unit_to_build,
 									ABILITY_ID::MOVE,
 									candidate);
@@ -2038,7 +2030,7 @@ private:
 					std::vector<Point2D> targets = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(bob->pos));
 					sortByDistanceTo(targets, bob->pos);
 					for (auto & p : targets) {
-						if (Distance2D(p, bob->pos) < 18.0f && placer.PlacementB(observation->GetGameInfo(), p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
+						if (Distance2D(p, bob->pos) < 18.0f && placer.PlacementB(info, p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
 							candidate = p;
 							good = true;
 							break;
@@ -2052,7 +2044,7 @@ private:
 				}
 				while (!good && iter++ < 25) {
 
-					if (placer.PlacementB(Observation()->GetGameInfo(), candidate,2)) {
+					if (placer.PlacementB(info, candidate,2)) {
 
 						std::vector<sc2::QueryInterface::PlacementQuery> queries;
 						queries.reserve(5);
@@ -2119,7 +2111,7 @@ private:
 				int iter = 0;
 				while (!good && iter++ < 25) {
 
-					if (placer.PlacementB(Observation()->GetGameInfo(), candidate, 3)) {
+					if (placer.PlacementB(info, candidate, 3)) {
 						std::vector<sc2::QueryInterface::PlacementQuery> queries;
 						queries.reserve(5);
 						queries.push_back(sc2::QueryInterface::PlacementQuery(ABILITY_ID::BUILD_GATEWAY, candidate));
@@ -2283,7 +2275,7 @@ private:
 			builder = bob;
 		}
 
-		auto info = Observation()->GetGameInfo();
+		
 		float maxdist = 15.0f;
 		if (FindEnemiesInRange(builder->pos, 8.0f).size() >= 2 || evading) {
 			maxdist = 3.0f;
