@@ -1,11 +1,12 @@
 #include "Placement.h"
 #include "sc2api/sc2_interfaces.h"
+#include "Pathing.h"
 
 using namespace std;
 using namespace sc2;
 using namespace sc2util;
 
-void BuildingPlacer::debug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs)
+void BuildingPlacer::debug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs, const GameInfo & info)
 {
 	// kinda costly, disabled by default
 	if (true) {
@@ -19,7 +20,7 @@ void BuildingPlacer::debug(sc2::DebugInterface * debug, const sc2::ObservationIn
 					auto len = to_string(z);
 					len.erase(len.length() - 4);
 					auto col = Colors::Red;
-					if (Pathable(obs->GetGameInfo(), Point2D(x, y))) {
+					if (Pathable(info, Point2D(x, y))) {
 						col = Colors::Green;
 					}
 					//debug->DebugTextOut(len, Point3D(x + .5, y + .5, z + .3f), col);
@@ -94,9 +95,8 @@ void BuildingPlacer::reserve(int expIndex)
 	}
 }
 
-void BuildingPlacer::reserveCliffSensitive(int expIndex, const ObservationInterface * obs)
+void BuildingPlacer::reserveCliffSensitive(int expIndex, const ObservationInterface * obs, const GameInfo & info)
 {
-	auto info = obs->GetGameInfo();
 	// scan tiles of the expansion (within 15.0), discard any that are within 5.0 of a cliff
 	auto center = map->expansions[expIndex];
 	int hx = center.x;
