@@ -313,7 +313,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 					|| Distance2D(p->pos,mp) < brakeDist
 					) {
 					e.move = Approaching;
-					actions->UnitCommand(p, ABILITY_ID::SMART, mp);
+					actions->UnitCommand(p, ABILITY_ID::MOVE, mp);
 				}
 				// keep clicking
 				//actions->UnitCommand(p, ABILITY_ID::SMART, mp);
@@ -324,7 +324,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 		}
 		else if (e.harvest == ReturningMineral) {
 			if (e.move == Entering) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, nexus);
+				actions->UnitCommand(p, ABILITY_ID::HARVEST_RETURN);
 				e.move = Accelerating;
 			}
 			else {
@@ -337,7 +337,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 			//GatheringMineral, //actively mining the crystal with ability
 			auto targetMineral = minerals[workerAssignedMinerals[p->tag]];
 			if (p->orders.empty() || std::none_of(p->orders.begin(), p->orders.end(), [](auto & o) { return o.ability_id == ABILITY_ID::HARVEST_GATHER; })) {
-				actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+				actions->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, targetMineral);
 			}
 			else if (p->orders[0].ability_id == sc2::ABILITY_ID::HARVEST_GATHER)
 			{
@@ -345,7 +345,7 @@ void HarvesterStrategy::OnStep(const sc2::Units & probes, const sc2::Observation
 				const Unit * min = obs->GetUnit(p->orders[0].target_unit_tag);
 				if (p->orders[0].target_unit_tag != targetMineral->tag && (min == nullptr || min->mineral_contents > 5) )//stay on assigned field unless it's killing an empty field
 				{
-					actions->UnitCommand(p, ABILITY_ID::SMART, targetMineral);
+					actions->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, targetMineral);
 				}
 			}
 		}
