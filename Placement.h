@@ -22,6 +22,6 @@ public :
 	// reserve mineral/gas tiles for an expansion index
 	void reserve(int expIndex);
 	void reserveVector(const sc2::Point2D & start, const sc2::Point2D & vec);
-	void reserveCliffSensitive(int expIndex, const sc2::ObservationInterface* obs);
-	void debug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
+	void reserveCliffSensitive(int expIndex, const sc2::ObservationInterface* obs, const sc2::GameInfo & info);
+	void debug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs, const sc2::GameInfo & info);
 };
