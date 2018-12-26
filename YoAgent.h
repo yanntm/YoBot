@@ -42,6 +42,7 @@ public :
 		actions = new sc2::YoAction(sc2::Agent::Actions());
 		map.init(Observation(), Query(), Debug());
 		placer.init(Observation(), Query(), &map, Debug());
+		info = Observation()->GetGameInfo();
 	}
 	sc2::ActionInterface * Actions() {
 		return actions;
@@ -57,6 +58,8 @@ public :
 
 	virtual void OnUnitEnterVision(const sc2::Unit* u);
 	virtual void OnUnitDestroyed(const sc2::Unit* unit);
+	virtual void OnUnitCreated(const sc2::Unit* unit);
+
 
 	//! Issues a command to a unit. Self targeting.
 	//!< \param unit The unit to send the command to.
@@ -84,7 +87,8 @@ protected :
 	int minerals = 0;
 	int gas = 0;
 	int supplyleft = 0;
-	
+	// updated as game goes on
+	sc2::GameInfo info;
 private :
 	std::unordered_map<sc2::Tag, const sc2::Unit *> enemies;
 	void updateFromObservation(const sc2::ObservationInterface *obs);

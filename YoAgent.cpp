@@ -1,6 +1,9 @@
 #include "YoAgent.h"
+#include "UnitTypes.h"
+#include "Pathing.h"
 
 using namespace sc2;
+using namespace sc2util;
 
 void YoAgent::OnStep()
 {
@@ -18,13 +21,28 @@ void YoAgent::OnUnitEnterVision(const Unit * u)
 	if (u->alliance == Unit::Alliance::Enemy) {
 		enemies.insert_or_assign(u->tag, u);
 	}
-
+	if (sc2util::IsBuilding(u->unit_type)) {
+		auto foot = Observation()->GetAbilityData()[(int)Observation()->GetUnitTypeData()[(int)u->unit_type].ability_id].footprint_radius * 2;
+		setBuildingAt(info, u->pos, foot, true);
+	}
 }
 
-void YoAgent::OnUnitDestroyed(const sc2::Unit * unit)
+void YoAgent::OnUnitDestroyed(const sc2::Unit * u)
 {
-	if (unit->alliance == Unit::Alliance::Enemy) {
-		enemies.erase(unit->tag);
+	if (u->alliance == Unit::Alliance::Enemy) {
+		enemies.erase(u->tag);
+	}
+	if (sc2util::IsBuilding(u->unit_type)) {
+		auto foot = Observation()->GetAbilityData()[(int)Observation()->GetUnitTypeData()[(int)u->unit_type].ability_id].footprint_radius * 2;
+		setBuildingAt(info, u->pos, foot, false);
+	}
+}
+
+void YoAgent::OnUnitCreated(const sc2::Unit * u)
+{
+	if (sc2util::IsBuilding(u->unit_type)) {
+		auto foot = Observation()->GetAbilityData()[(int)Observation()->GetUnitTypeData()[(int)u->unit_type].ability_id].footprint_radius * 2;
+		setBuildingAt(info, u->pos, foot, true);
 	}
 }
 
