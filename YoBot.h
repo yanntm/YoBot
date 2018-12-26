@@ -251,7 +251,7 @@ public:
 				}
 			}
 			if (enemy != nullptr && enemy->tag != unit->engaged_target_tag) {
-				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, enemy);
+				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, enemy);
 			}
 			/*		if (unit->orders.size() != 0) {
 			auto order = unit->orders.front();
@@ -524,7 +524,7 @@ public:
 						}
 						
 						for (auto u : list) {
-							Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos);							
+							Actions()->UnitCommand(u, ABILITY_ID::ATTACK, reaper->pos);							
 						}
 					}
 				}
@@ -534,10 +534,10 @@ public:
 						auto v = unit->pos - nmy->pos;
 						v /= Distance2D(Point2D(0, 0), v);
 						v *= 3.0f;
-						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(unit->pos + v));
+						Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(unit->pos + v));
 					}
 					else {
-						Actions()->UnitCommand(unit, ABILITY_ID::SMART, FindNearestMineralPatch(tpos));
+						Actions()->UnitCommand(unit, ABILITY_ID::HARVEST_GATHER, FindNearestMineralPatch(tpos));
 					}
 				}
 			}
@@ -548,7 +548,7 @@ public:
 				//std::cout << "ouch run away" << std::endl;
 			}
 			else {
-				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, unit->pos);
+				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, unit->pos);
 			}
 
 		}
@@ -669,7 +669,7 @@ public:
 					//Actions()->UnitCommand(nexus, ABILITY_ID::TRAIN_PROBE, true);
 				}
 				for (auto u : list) {
-					Actions()->UnitCommand(u, ABILITY_ID::ATTACK_ATTACK, reaper->pos);
+					Actions()->UnitCommand(u, ABILITY_ID::ATTACK, reaper->pos);
 				}
 			}
 		}
@@ -1143,13 +1143,13 @@ public:
 						if (list.size() != 0) {
 							int targetU = GetRandomInteger(0, list.size() - 1);
 							if (!list[targetU]->is_flying) {
-								Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, list[targetU]->pos);
+								Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, list[targetU]->pos);
 								continue;
 							}
 						}
 						if (estimated <= 5) {
 							int targetU = GetRandomInteger(0, map.expansions.size() - 1);
-							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, map.expansions[targetU]);
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, map.expansions[targetU]);
 						}
 					}
 					else {
@@ -1157,7 +1157,7 @@ public:
 							OnUnitHasAttacked(unit);
 						}
 						else {
-							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+							Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, tg);
 						}						
 					}
 				}
@@ -1171,7 +1171,7 @@ public:
 						OnUnitHasAttacked(unit);
 					}
 					else {
-						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+						Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, tg);
 					}
 				}
 			}
@@ -1500,12 +1500,12 @@ public:
 				}
 				// requeue our previous order				
 				if (z->orders.empty()) {
-					Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);
+					Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t);
 					attacking.push_back(index);
 				}
 				else {
 					auto order = z->orders.front();
-					Actions()->UnitCommand(z, ABILITY_ID::ATTACK_ATTACK, t);
+					Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t);
 					sendUnitCommand(z, order, true);
 					attacking.push_back(index);
 				}
@@ -1590,7 +1590,7 @@ public:
 					OnUnitHasAttacked(unit);
 				}
 				else {
-					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, tg);
 				}
 			}
 			break;
@@ -1610,7 +1610,7 @@ public:
 					if (target == proxy) {
 						tg = defensePoint(proxy);
 					}
-					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK_ATTACK, tg);
+					Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, tg);
 				}
 			}
 			break;
@@ -2024,13 +2024,13 @@ private:
 
 				bool good = false;
 				int iter = 0;
-				auto candidate = Point2D(proxy.x + rx * (8.0f + gws.size() * 2), proxy.y + ry * (8.0f + gws.size() * 2));
+				auto candidate = Point2D(unit_to_build->pos.x + rx * (8.0f + gws.size() * 2), unit_to_build->pos.y + ry * (8.0f + gws.size() * 2));
 				// see if a nasty spot is available close by
 				if (proxy != map.getPosition(MapTopology::ally, MapTopology::main)) {
 					std::vector<Point2D> targets = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(bob->pos));
 					sortByDistanceTo(targets, bob->pos);
 					for (auto & p : targets) {
-						if (Distance2D(p, bob->pos) < 18.0f && placer.PlacementB(info, p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
+						if (Distance2D(p, unit_to_build->pos) < 18.0f && placer.PlacementB(info, p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
 							candidate = p;
 							good = true;
 							break;
@@ -2038,7 +2038,7 @@ private:
 					}
 				}
 				if (evading || needSupport) {					
-					if (Distance2D(candidate, bob->pos) > 8.0f) {
+					if (Distance2D(candidate, unit_to_build->pos) > 8.0f) {
 						candidate = Point2D(unit_to_build->pos.x + rx * 3.0f, proxy.y + ry * 3.0f);
 					}
 				}
