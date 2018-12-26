@@ -4,6 +4,7 @@
 #include "MapTopology.h"
 #include "DistUtil.h"
 #include "UnitTypes.h"
+#include "Pathing.h"
 
 using namespace std;
 using namespace sc2;
