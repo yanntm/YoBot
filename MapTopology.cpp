@@ -675,23 +675,3 @@ std::vector<std::pair<Point3D, Units > > MapTopology::CalculateExpansionLocation
 
 	return expansion_locations;
 }
-
-namespace sc2util {
-	// code for these two is taken from 5minBot, by Archiatrus.
-	bool Pathable(const sc2::GameInfo & info, const sc2::Point2D & point)
-	{
-		sc2::Point2DI pointI((int)point.x, (int)point.y);
-		return Pathable(info, pointI);
-	}
-	bool Pathable(const sc2::GameInfo & info, const sc2::Point2DI & pointI) {
-		if (pointI.x < 0 || pointI.x >= info.width || pointI.y < 0 || pointI.y >= info.width)
-		{
-			return false;
-		}
-		unsigned char encodedPlacement = info.pathing_grid.data[pointI.x + ((info.height - 1) - pointI.y) * info.width];
-		bool decodedPlacement = encodedPlacement == 255 ? false : true;
-		return decodedPlacement;
-	}
-
-
-}
