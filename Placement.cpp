@@ -1,6 +1,7 @@
 #include "Placement.h"
 #include "sc2api/sc2_interfaces.h"
 #include "Pathing.h"
+#include "ImageUtil.h"
 
 using namespace std;
 using namespace sc2;
@@ -65,6 +66,11 @@ bool BuildingPlacer::PlacementB(const sc2::GameInfo & info, const sc2::Point2D &
 		}
 	}
 	return true;
+}
+
+bool BuildingPlacer::setBuildingAt(sc2::GameInfo & info, const sc2::Point2D & pos, int foot, bool b)
+{
+	return sc2util::setBuildingAt(info, info.placement_grid, pos, foot, b);
 }
 
 void BuildingPlacer::reserve(const sc2::Point2D & point)
