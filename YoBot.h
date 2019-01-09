@@ -212,6 +212,7 @@ public:
 			Units weak;
 			Units drones;
 			Units pylons;
+			Units enemies;
 
 			for (auto t : targets) {
 				if (t->unit_type == UNIT_TYPEID::ZERG_EGG || t->unit_type == UNIT_TYPEID::ZERG_BROODLING || t->unit_type == UNIT_TYPEID::ZERG_LARVA) {
@@ -222,14 +223,22 @@ public:
 				}
 				if (IsWorkerType(t->unit_type)) {
 					drones.push_back(t);
+					enemies.push_back(t);
 				}
+				else if (isStaticDefense(t->unit_type) || IsArmyUnitType(t->unit_type)) {
+					enemies.push_back(t);
+				}
+
 				if (t->unit_type == UNIT_TYPEID::TERRAN_SUPPLYDEPOT || t->unit_type == UNIT_TYPEID::TERRAN_SUPPLYDEPOTLOWERED || t->unit_type == UNIT_TYPEID::PROTOSS_PYLON) {
 					pylons.push_back(t);
 				}
 			}
 			
 			const Unit * enemy = nullptr;
-			if (!drones.empty()) {
+			if (!enemies.empty()) {
+				enemy = chooseClosest(unit, enemies);
+			}
+			if (enemy == nullptr && !drones.empty()) {
 				if (rand() % 2 == 0) {
 					enemy = chooseClosest(unit, drones);
 				}
@@ -250,7 +259,7 @@ public:
 					}
 				}
 			}
-			if (enemy != nullptr && enemy->tag != unit->engaged_target_tag) {
+			if (enemy != nullptr) {
 				Actions()->UnitCommand(unit, ABILITY_ID::ATTACK, enemy);
 			}
 			/*		if (unit->orders.size() != 0) {
@@ -895,7 +904,7 @@ public:
 				}
 			}
 		}
-		if (scout != nullptr && !YoActions()->isBusy(scout->tag) && frame > 400 && probs.size() > 2) {
+		if (false && scout != nullptr && !YoActions()->isBusy(scout->tag) && frame > 400 && probs.size() > 2) {
 			auto & tg = map.getPosition(MapTopology::enemy, MapTopology::main);
 			if (!orderBusy(scout)) {
 				if (!evade(scout, tg)) {
@@ -1232,19 +1241,29 @@ public:
 				busy(bob->tag);
 			}
 			*/
-			auto ass = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ASSIMILATOR));
-			if ( (Observation()->GetArmyCount() >= maxZeal || minerals >= 500 || needCannons) && minerals >= 75 && ass.size() < 2 && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
+			
+			Units allass = Observation()->GetUnits(Unit::Alliance::Self, [](const Unit & u) { return u.unit_type == sc2::UNIT_TYPEID::PROTOSS_ASSIMILATOR; });
+			Units ass;
+			copy_if(allass.begin(), allass.end(), back_inserter(ass), [](const Unit * u) { return u->vespene_contents != 0; });
+			int desired = 2;
+			if (minerals >= 1000) {
+				desired = std::max( (int)nexi.size() / 2,2);
+			}
+			if ( (Observation()->GetArmyCount() >= maxZeal || minerals >= 500 || needCannons) && minerals >= 75 && ass.size() < desired && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
 				
 				// one gas only on low pop
 				if (Observation()->GetArmyCount() >= 10 || ass.size() == 0) {
-					auto g = FindNearestVespeneGeyser(nexus->pos, ass);
-					if (!probes.empty() && g != nullptr) {
-						auto p = chooseClosest(g, probes);
-						harvesters.erase(p->tag);
-						auto min = FindNearestMineralPatch(p->pos);
-						Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
-						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
-						minerals -= 75;
+					for (auto & nexus : nexi) {
+						auto g = FindNearestVespeneGeyser(nexus->pos, allass);
+						if (!probes.empty() && g != nullptr && Distance2D(nexus->pos,g->pos) < 12.0f) {
+							auto p = chooseClosest(g, probes);
+							harvesters.erase(p->tag);
+							auto min = FindNearestMineralPatch(p->pos);
+							Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
+							Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
+							minerals -= 75;
+							break;
+						}
 					}
 				}
 			}
