@@ -301,7 +301,17 @@ public:
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT) {
 			auto targets = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
 				return IsArmyUnitType(u.unit_type) && !u.is_flying && Distance2D(u.pos, unit->pos) < 15.0f; });
-			if (!targets.empty()) {
+			auto work = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
+				return IsWorkerType(u.unit_type) && Distance2D(u.pos, unit->pos) < 20.0f; });
+			if (work.size() >= 4) {
+				Point3D cog;
+				for (auto & w : work) {
+					cog += w->pos;
+				}
+				cog /= work.size();
+				Actions()->UnitCommand(unit, ABILITY_ID::SMART, cog);
+
+			} else if (!targets.empty()) {
 				auto friendly = Observation()->GetUnits(Unit::Alliance::Self, [&](const Unit& u) {
 					return u.unit_type == UNIT_TYPEID::PROTOSS_ADEPT
 					 && Distance2D(u.pos, unit->pos) < 15.0f; });
@@ -771,9 +781,11 @@ public:
 		{
 
 			map.debugMap(Debug(), Observation());
-
-			Debug()->DebugTextOut("CURproxy", proxy + Point3D(0, 0, 2.0f), Colors::Yellow);
-			Debug()->DebugTextOut("CURtarget", target + Point3D(0, 0, 2.0f), Colors::Yellow);
+			const auto & obs = Observation();
+			Debug()->DebugTextOut("CURproxy",Point3D(proxy.x, proxy.y, obs->TerrainHeight(proxy)+.2f), Colors::Yellow);
+			Debug()->DebugTextOut("CURtarget",Point3D(target.x, target.y, obs->TerrainHeight(target) + .2f), Colors::Yellow);
+			Debug()->DebugSphereOut(Point3D(proxy.x, proxy.y, obs->TerrainHeight(proxy) + .2f), 2.0f, Colors::Red);
+			Debug()->DebugSphereOut(Point3D(target.x, target.y, obs->TerrainHeight(target) + .2f), 2.0f, Colors::Red);
 
 			for (const auto & u : Observation()->GetUnits(Unit::Alliance::Self)) {
 				if (!u->orders.empty()) {
@@ -786,7 +798,7 @@ public:
 						}
 					}
 					else if (o.target_pos.x != 0 && o.target_pos.y != 0) {
-						Debug()->DebugLineOut(u->pos + Point3D(0, 0, 0.2f), Point3D(o.target_pos.x, o.target_pos.y, 15.0f), Colors::Green);
+						Debug()->DebugLineOut(u->pos + Point3D(0, 0, 0.2f), Point3D(o.target_pos.x, o.target_pos.y, obs->TerrainHeight(o.target_pos)+.2f), Colors::Green);
 					}
 				}
 				if (u->weapon_cooldown != 0) {
@@ -919,7 +931,7 @@ public:
 		if (bob != nullptr && ! YoActions()->isBusy(bob->tag) && probs.size() > 2) {
 			if (! orderBusy(bob)) {
 				auto d = Distance2D(bob->pos, proxy);
-				if (d > 15.0f && d < 25.0f) {
+				if (false && d > 15.0f && d < 25.0f) {
 
 					float * weights = computeWeightMap(info, Observation()->GetUnitTypeData(), allEnemies());
 					auto path = AstarSearchPath(bob->pos, map.FindHardPointsInMinerals(map.FindNearestBaseIndex(proxy))[0], info, weights);
@@ -1561,9 +1573,15 @@ public:
 					}
 				}
 				if (z->unit_type == UNIT_TYPEID::PROTOSS_ADEPT) {
-					Actions()->UnitCommand(z, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, t->pos);
+					AvailableAbilities abilities = Query()->GetAbilitiesForUnit(z);
+					for (const auto& ability : abilities.abilities) {
+						if (ability.ability_id == ABILITY_ID::EFFECT_ADEPTPHASESHIFT) {
+							Actions()->UnitCommand(z, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, t->pos);
+							break;
+						}
+					}
 				}
-				Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t, true);
+				Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t);
 				attacking.push_back(index);				
 			}
 		}
@@ -2290,7 +2308,7 @@ private:
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
 		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0 && gates.size() >= 3) {
 			tobuild = ABILITY_ID::BUILD_FORGE;
-		} else if (gws > 0 && isterran && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
+		} else if (gws > 0 && (isterran || needImmo) && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
 			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
 		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) == 0) {
 			tobuild = ABILITY_ID::BUILD_TWILIGHTCOUNCIL;
@@ -2440,7 +2458,7 @@ private:
 	int estimateEnemyStrength() {
 		int str = 0;
 		for (auto u : allEnemies()) {
-			if (IsArmyUnitType(u.second->unit_type)) {
+			if (IsArmyUnitType(u.second->unit_type) || isStaticDefense(u.second->unit_type)) {
 				str++;
 			}				
 		}
