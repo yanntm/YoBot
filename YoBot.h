@@ -96,6 +96,15 @@ public:
 			//proxy = (.67 * target + .33*nexus->pos);
 			//proxy = FindFarthestBase(nexus->pos,target);
 			//proxy = FindNearestBase(proxy);
+			
+		}
+
+		
+		for (auto r : info.player_info) {
+			if (r.race_requested == Terran) {
+				proxy = nexus->pos;
+				break;
+			}
 		}
 
 		baseRazed = false;
@@ -198,7 +207,7 @@ public:
 	virtual void OnUnitHasAttacked(const Unit* unit)  {
 
 
-		if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT && ! YoActions()->isBusy(unit->tag)) {
+		if (IsArmyUnitType(unit->unit_type) && ! YoActions()->isBusy(unit->tag)) {
 			auto targets = FindEnemiesInRange(unit->pos, 15);
 
 			bool isToss = true;
@@ -288,6 +297,25 @@ public:
 			}*/
 			//OnUnitAttacked(unit);
 			
+		}
+		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT) {
+			auto targets = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
+				return IsArmyUnitType(u.unit_type) && !u.is_flying && Distance2D(u.pos, unit->pos) < 15.0f; });
+			if (!targets.empty()) {
+				auto friendly = Observation()->GetUnits(Unit::Alliance::Self, [&](const Unit& u) {
+					return u.unit_type == UNIT_TYPEID::PROTOSS_ADEPT
+					 && Distance2D(u.pos, unit->pos) < 15.0f; });
+				sortByDistanceTo(targets, unit->pos);
+				sortByDistanceTo(friendly, unit->pos);
+				if (!friendly.empty()) {
+					auto extra = (targets.front()->pos - friendly.front()->pos);
+					extra /= Distance2D(Point2D(0, 0), extra);
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, targets.front()->pos + extra);
+				}
+				else {
+					Actions()->UnitCommand(unit, ABILITY_ID::SMART, targets.front()->pos);
+				}
+			}
 		}
 	}
 
@@ -482,6 +510,10 @@ public:
 			// evasive action
 			evade(bob,proxy);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
+			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, [&](const auto & u) { return IsArmyUnitType(u.unit_type) && ! YoActions()->isBusy(u.tag) && Distance2D(u.pos,unit->pos) < 35.0f; })) {
+				Actions()->UnitCommand(u, ABILITY_ID::ATTACK, unit->pos);
+			}
+			
 			if (nexus == nullptr) {
 				evade(unit, proxy);
 			}
@@ -551,7 +583,13 @@ public:
 				}
 			}
 		}
-		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ZEALOT) {
+		else if (IsArmyUnitType(unit->unit_type)) {
+			if (unit->unit_type == UNIT_TYPEID::PROTOSS_ADEPT) {
+				auto reaper = FindNearestEnemy(unit->pos);
+				if (reaper != nullptr) {
+					Actions()->UnitCommand(unit, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, reaper->pos);
+				}
+			}
 			if (unit->shield <= 10 && unit->health <= 30) {
 				evade(unit, proxy);
 				//std::cout << "ouch run away" << std::endl;
@@ -601,7 +639,7 @@ public:
 		}
 		
 		if (next >= 5 && cur < 5) {
-			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
+			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, [](const auto & u) { return IsArmyUnitType(u.unit_type); })) {
 				OnUnitIdle(u);
 			}
 		}
@@ -956,8 +994,8 @@ public:
 		if (proxy != target) {
 			if (FindEnemiesInRange(target, 18).empty() && baseRazed) {
 				target = proxy;
-				for (auto z : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_ZEALOT))) {
-					OnUnitIdle(z);
+				for (auto u : Observation()->GetUnits(Unit::Alliance::Self, [](const auto & u) { return IsArmyUnitType(u.unit_type); })) {
+					OnUnitIdle(u);
 				}
 			}
 		}
@@ -1185,6 +1223,9 @@ public:
 				}
 			}
 		}
+		for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT; })) {
+			OnUnitHasAttacked(unit);
+		}
 		if (nexus == nullptr && estimated <= 5 && bob != nullptr && minerals >= 0 && !YoActions()->isBusy(bob->tag)) {
 			proxy = map.getPosition(MapTopology::ally, MapTopology::proxy);
 			if (Query()->Placement(ABILITY_ID::BUILD_NEXUS,proxy)) {
@@ -1246,8 +1287,8 @@ public:
 			Units ass;
 			copy_if(allass.begin(), allass.end(), back_inserter(ass), [](const Unit * u) { return u->vespene_contents != 0; });
 			int desired = 2;
-			if (minerals >= 1000) {
-				desired = std::max( (int)nexi.size() / 2,2);
+			if (nexi.size() > 1) {
+				desired = nexi.size() + 1;
 			}
 			if ( (Observation()->GetArmyCount() >= maxZeal || minerals >= 500 || needCannons) && minerals >= 75 && ass.size() < desired && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
 				
@@ -1486,6 +1527,8 @@ public:
 		int index = -1;
 		for (const auto & z : zeals) {
 			index++;
+			if (YoActions()->isBusy(z->tag))
+				continue;
 			// weak drones only do this if close to nexus
 			if (z->unit_type == UNIT_TYPEID::PROTOSS_PROBE &&  ( (z->shield + z->health <= 10) || (nexus==nullptr || Distance2D(nexus->pos, z->pos) > 5.0f) || z == bob || z == scout)) {
 				continue;
@@ -1517,18 +1560,11 @@ public:
 						max = f;
 					}
 				}
-				// requeue our previous order				
-				if (z->orders.empty()) {
-					Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t);
-					attacking.push_back(index);
+				if (z->unit_type == UNIT_TYPEID::PROTOSS_ADEPT) {
+					Actions()->UnitCommand(z, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, t->pos);
 				}
-				else {
-					auto order = z->orders.front();
-					Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t);
-					sendUnitCommand(z, order, true);
-					attacking.push_back(index);
-				}
-				
+				Actions()->UnitCommand(z, ABILITY_ID::ATTACK, t, true);
+				attacking.push_back(index);				
 			}
 		}
 		return attacking;
@@ -1598,7 +1634,8 @@ public:
 			break;
 		}
 		case UNIT_TYPEID::PROTOSS_ADEPT:
-		case UNIT_TYPEID::PROTOSS_IMMORTAL: 
+		case UNIT_TYPEID::PROTOSS_STALKER:
+		case UNIT_TYPEID::PROTOSS_IMMORTAL:
 		case UNIT_TYPEID::PROTOSS_ZEALOT: {
 			if (Observation()->GetArmyCount() >= criticalZeal || Observation()->GetFoodUsed() >= 195 /*&& staticd < 4 * Observation()->GetArmyCount()*/) {				
 				auto tg = target;
@@ -1690,17 +1727,18 @@ private:
 		}
 		
 		if (frame % 3 == 0) {
+			auto cy = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE));
+			if (!cy.empty()) {
+				auto & f = *cy.begin();
+				//bool b = doUpgrade(f,ABILITY_ID::RESEARCH_WARPGATE);
+				//chrono(f);
+			}
 			auto ta = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL));
 			if (!ta.empty()) {
 				auto & f = *ta.begin();
-				if (f->build_progress == 1.0f && !YoActions()->isBusy(f->tag) && !orderBusy(f) && minerals >= 100 && gas >= 100) {
-					Actions()->UnitCommand(f, ABILITY_ID::RESEARCH_CHARGE);
-					minerals -= 100;
-					gas -= 100;
-				}
+				doUpgrade(f, ABILITY_ID::RESEARCH_CHARGE);
 				chrono(f);
-			}
-
+			}			
 			auto forge = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_FORGE));
 			if (!forge.empty()) {
 				auto & f = *forge.begin();
@@ -1714,6 +1752,16 @@ private:
 		}
 		chronoBuild(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY, ABILITY_ID::TRAIN_IMMORTAL, 4, 250, 150);
 		chronoBuild(UNIT_TYPEID::PROTOSS_STARGATE, ABILITY_ID::TRAIN_VOIDRAY, 4, 250, 150);
+		//if (CountUnitType(UNIT_TYPEID::PROTOSS_STALKER) <= 25)
+		//	chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_STALKER, 2, 125, 50);
+		for (auto r : info.player_info) {
+			if (r.race_requested == Terran) {
+				if (CountUnitType(UNIT_TYPEID::PROTOSS_ADEPT) <= 15)
+					chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ADEPT, 2, 100, 25);				
+				break;
+			}
+		}
+		
 		if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) <= 25)
 			chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ZEALOT, 2, 100, 0);
 		
@@ -1740,6 +1788,29 @@ private:
 		}
 	}
 
+	bool doUpgrade(const Unit * f, ABILITY_ID upg) {
+
+		if (f->build_progress == 1.0f && !YoActions()->isBusy(f->tag) && !orderBusy(f)) {
+			AvailableAbilities abilities = Query()->GetAbilitiesForUnit(f);
+			if (abilities.abilities.empty()) {
+				return false;
+			}
+
+			for (const auto& ability : abilities.abilities) {
+				if (ability.ability_id == upg) {
+					Actions()->UnitCommand(f, upg);
+					auto upgrades = Observation()->GetUpgradeData();
+					auto & uptodo = std::find_if(upgrades.begin(), upgrades.end(), [&upg](const UpgradeData & u) { return u.ability_id == upg; });
+					minerals -= uptodo->mineral_cost;
+					gas -= uptodo->vespene_cost;
+					return true;
+				}
+			}
+
+		}
+		return false;
+	}
+
 	bool doUpgrade(const Unit * f) {
 		
 		if (f->build_progress == 1.0f && !YoActions()->isBusy(f->tag) && !orderBusy(f)) {
@@ -1757,9 +1828,9 @@ private:
 				}
 				for (const auto& ability : abilities.abilities) {
 					if (ability.ability_id == upg) {
-						Actions()->UnitCommand(f, upg);
 						auto upgrades = Observation()->GetUpgradeData();						
-						auto & uptodo = std::find_if(upgrades.begin(), upgrades.end(), [&todo](const UpgradeData & u) { return u.ability_id == todo; });
+						auto & uptodo = std::find_if(upgrades.begin(), upgrades.end(), [&todo](const UpgradeData & u) { return u.ability_id == todo; });												
+						Actions()->UnitCommand(f, upg);
 						minerals -= uptodo->mineral_cost;
 						gas -= uptodo->vespene_cost;
 						return true;
@@ -2200,10 +2271,17 @@ private:
 		}
 
 		auto gates = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
-		int gws = 0;
-		for (auto g : gates) {
-			if (Distance2D(g->pos, proxy) <= 20.0f) {
-				gws++;
+		int gws = gates.size();
+//		for (auto g : gates) {
+//			if (Distance2D(g->pos, proxy) <= 20.0f) {
+//				gws++;
+//			}
+//		}
+		bool isterran = false;
+		for (auto r : info.player_info) {
+			if (r.race_requested == Terran) {
+				isterran = true;
+				break;
 			}
 		}
 
@@ -2212,7 +2290,7 @@ private:
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
 		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0 && gates.size() >= 3) {
 			tobuild = ABILITY_ID::BUILD_FORGE;
-		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
+		} else if (gws > 0 && isterran && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
 			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
 		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) == 0) {
 			tobuild = ABILITY_ID::BUILD_TWILIGHTCOUNCIL;
