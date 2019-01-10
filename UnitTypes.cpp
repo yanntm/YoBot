@@ -165,7 +165,7 @@ namespace sc2util {
 		if (IsBuilding(type)) { return false; }
 		if (type == sc2::UNIT_TYPEID::ZERG_EGG) { return false; }
 		if (type == sc2::UNIT_TYPEID::ZERG_LARVA) { return false; }
-
+		if (type == sc2::UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT) { return false; }
 		return true;
 	}
 
