@@ -303,12 +303,19 @@ public:
 				return IsArmyUnitType(u.unit_type) && !u.is_flying && Distance2D(u.pos, unit->pos) < 15.0f; });
 			auto work = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
 				return IsWorkerType(u.unit_type) && Distance2D(u.pos, unit->pos) < 20.0f; });
-			if (work.size() >= 4) {
+			if (work.size() >= 3) {
 				Point3D cog;
 				for (auto & w : work) {
 					cog += w->pos;
 				}
 				cog /= work.size();
+				auto baseindex = map.FindNearestBaseIndex(cog);
+				if (Distance2D(map.expansions[baseindex], cog) < 10.0f) {
+					if (!map.FindHardPointsInMinerals(baseindex).empty()) {
+						auto & p = map.FindHardPointsInMinerals(baseindex)[0];
+						cog = Point3D(p.x, p.y, 0);
+					}
+				}
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, cog);
 
 			} else if (!targets.empty()) {
@@ -320,6 +327,7 @@ public:
 				if (!friendly.empty()) {
 					auto extra = (targets.front()->pos - friendly.front()->pos);
 					extra /= Distance2D(Point2D(0, 0), extra);
+					extra *= (2* targets.front()->radius);
 					Actions()->UnitCommand(unit, ABILITY_ID::SMART, targets.front()->pos + extra);
 				}
 				else {
@@ -887,7 +895,7 @@ public:
 
 		}
 #endif
-		if (gas > 150) {
+		if (gas >= 100) {
 			needImmo = true;
 		}
 		//sc2::SleepFor(20);
@@ -1305,7 +1313,7 @@ public:
 			if ( (Observation()->GetArmyCount() >= maxZeal || minerals >= 500 || needCannons) && minerals >= 75 && ass.size() < desired && nexus != nullptr && ( harvesting.getIdealHarvesters()- harvesting.getCurrentHarvesters() < 3 || minerals >= 500)) {
 				
 				// one gas only on low pop
-				if (Observation()->GetArmyCount() >= 10 || ass.size() == 0) {
+				if (Observation()->GetFoodUsed() >= 30 || ass.size() == 0) {
 					for (auto & nexus : nexi) {
 						auto g = FindNearestVespeneGeyser(nexus->pos, allass);
 						if (!probes.empty() && g != nullptr && Distance2D(nexus->pos,g->pos) < 12.0f) {
@@ -1873,7 +1881,7 @@ private:
 
 	int chronoBuild(UNIT_TYPEID builder, ABILITY_ID tobuild, int supplyreq, int minsreq, int gasreq) {
 		int nbuilt = 0;
-		if (supplyleft >= supplyreq && minerals >= minsreq && gas >= gasreq) {
+		//if (supplyleft >= supplyreq && minerals >= minsreq && gas >= gasreq) {
 			for (auto & gw : Observation()->GetUnits(Unit::Alliance::Self, IsUnit(builder))) {
 				if (gw->build_progress < 1) {
 					continue;
@@ -1885,11 +1893,16 @@ private:
 					continue;
 				}
 				if (gw->orders.size() == 0) {
-					Actions()->UnitCommand(gw, tobuild);
-					nbuilt++;
 					supplyleft -= supplyreq;
 					minerals -= minsreq;
 					gas -= gasreq;
+					if (supplyleft >= 0 && minerals >= 0 && gas >= 0) {
+						Actions()->UnitCommand(gw, tobuild);
+						nbuilt++;
+					}
+					else {
+						break;
+					}
 				}
 				else {
 					chrono(gw);
@@ -1898,7 +1911,7 @@ private:
 					break;
 				}
 			}
-		}
+		//}
 		return nbuilt;
 	}
 
