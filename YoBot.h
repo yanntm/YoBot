@@ -99,20 +99,25 @@ public:
 			
 		}
 
-		
+		bool isTerran = false;
 		for (auto r : info.player_info) {
 			if (r.race_requested == Terran) {
-				proxy = nexus->pos;
+				isTerran = true;
 				break;
 			}
 		}
 
 		baseRazed = false;
 
-		//if (game_info.)
-		//choke = (.2f * target + .8f*nexus->pos);
-		Actions()->UnitCommand(bob, ABILITY_ID::SMART, proxy);		
-
+		if (isTerran) {
+			proxy = nexus->pos;
+			bob = nullptr;
+		}
+		else {
+			//if (game_info.)
+			//choke = (.2f * target + .8f*nexus->pos);
+			Actions()->UnitCommand(bob, ABILITY_ID::SMART, proxy);
+		}
 		if (scout != nullptr) 
 			probes.erase(std::find(probes.begin(), probes.end(), scout));
 		
@@ -205,7 +210,11 @@ public:
 	}
 
 	virtual void OnUnitHasAttacked(const Unit* unit)  {
-
+		if ( any_of(unit->buffs.begin(), unit->buffs.end(), [](const auto & b) {return b == BUFF_ID::LOCKON; })) {
+			evade(unit, proxy);
+			return;
+			//std::cout << "ouch run away" << std::endl;
+		}
 
 		if (IsArmyUnitType(unit->unit_type) && ! YoActions()->isBusy(unit->tag)) {
 			auto targets = FindEnemiesInRange(unit->pos, 15);
@@ -524,13 +533,17 @@ public:
 	}
 
 	virtual void OnUnitAttacked(const Unit* unit) final {
+		
+		if (IsWorkerType(unit->unit_type) || unit->unit_type == UNIT_TYPEID::PROTOSS_NEXUS) {
+			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, [&](const auto & u) { return IsArmyUnitType(u.unit_type) && !YoActions()->isBusy(u.tag) && Distance2D(u.pos, unit->pos) < 35.0f; })) {
+				Actions()->UnitCommand(u, ABILITY_ID::ATTACK, unit->pos);
+			}
+		}
 		if ( (unit == bob || unit==scout) && unit->shield <= 5) {
 			// evasive action
 			evade(bob,proxy);
 		} else if (unit->unit_type == UNIT_TYPEID::PROTOSS_PROBE && unit->alliance == Unit::Alliance::Self) {
-			for (auto u : Observation()->GetUnits(Unit::Alliance::Self, [&](const auto & u) { return IsArmyUnitType(u.unit_type) && ! YoActions()->isBusy(u.tag) && Distance2D(u.pos,unit->pos) < 35.0f; })) {
-				Actions()->UnitCommand(u, ABILITY_ID::ATTACK, unit->pos);
-			}
+			
 			
 			if (nexus == nullptr) {
 				evade(unit, proxy);
@@ -547,7 +560,8 @@ public:
 					}
 				}
 
-				const auto & tpos = (nexus == nullptr) ? unit->pos : nexus->pos;
+				const auto & nex = harvesting.getNexusFor(unit->tag);
+				const auto & tpos = (nex == nullptr) ? unit->pos : nex->pos;
 				Units close = FindEnemiesInRange(tpos, 6);
 
 				if (att < 2 * close.size() && att <= list.size() *.75f) {
@@ -608,7 +622,7 @@ public:
 					Actions()->UnitCommand(unit, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, reaper->pos);
 				}
 			}
-			if (unit->shield <= 10 && unit->health <= 30) {
+			if (unit->shield <= 10 && unit->health <= 30 || any_of(unit->buffs.begin(), unit->buffs.end(), [](const auto & b) {return b == BUFF_ID::LOCKON; })) {
 				evade(unit, proxy);
 				//std::cout << "ouch run away" << std::endl;
 			}
@@ -1074,7 +1088,8 @@ public:
 		if (harvesting.getCurrentHarvesters() >= harvesting.getIdealHarvesters()) {
 			if (! buildingNexus) {
 				auto nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
-				if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })) {
+				if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })
+					&& none_of(probs.begin(), probs.end(), [](const auto & p) { return any_of(p->orders.begin(), p->orders.end(), [](const auto & o) { return o.ability_id == ABILITY_ID::BUILD_NEXUS; });  })) {
 					minerals -= 400;
 					if (minerals > 0 && !probs.empty()) {
 						const std::vector<int> & bydist = map.distanceSortedBasesPerPlayer[map.ourBaseStartLocIndex];
@@ -1197,6 +1212,12 @@ public:
 			}
 
 			for (const auto & unit : Observation()->GetUnits(Unit::Alliance::Self, [](auto & u) { return IsArmyUnitType(u.unit_type); })) {
+				if (unit->shield <= 10 && unit->health <= 30 || any_of(unit->buffs.begin(), unit->buffs.end(), [](const auto & b) {return b == BUFF_ID::LOCKON; })) {
+					evade(unit, proxy);
+					continue;
+					//std::cout << "ouch run away" << std::endl;
+				}
+				
 				if (unit->orders.size() == 0 && !YoActions()->isBusy(unit->tag)) {
 					if (Distance2D(unit->pos, target) < 15.0f) {
 						target = proxy;
@@ -1344,7 +1365,7 @@ public:
 						Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, a);
 					}
 				}
-				else if (a->assigned_harvesters > 3 || ( a->assigned_harvesters > 0 &&  gas > 400)) {
+				else if (a->assigned_harvesters > 3 || ( a->assigned_harvesters > 0 &&  gas > 500)) {
 					auto probesc = probes;
 					probesc.erase(
 						remove_if(probesc.begin(), probesc.end(), [a](const Unit * u) { 
@@ -1549,6 +1570,11 @@ public:
 			index++;
 			if (YoActions()->isBusy(z->tag))
 				continue;
+			if (z->shield <= 10 && z->health <= 30 || any_of(z->buffs.begin(), z->buffs.end(), [](const auto & b) {return b == BUFF_ID::LOCKON; })) {
+				evade(z, proxy);
+				continue;
+				//std::cout << "ouch run away" << std::endl;
+			}
 			// weak drones only do this if close to nexus
 			if (z->unit_type == UNIT_TYPEID::PROTOSS_PROBE &&  ( (z->shield + z->health <= 10) || (nexus==nullptr || Distance2D(nexus->pos, z->pos) > 5.0f) || z == bob || z == scout)) {
 				continue;
@@ -1581,11 +1607,17 @@ public:
 					}
 				}
 				if (z->unit_type == UNIT_TYPEID::PROTOSS_ADEPT) {
-					AvailableAbilities abilities = Query()->GetAbilitiesForUnit(z);
-					for (const auto& ability : abilities.abilities) {
-						if (ability.ability_id == ABILITY_ID::EFFECT_ADEPTPHASESHIFT) {
-							Actions()->UnitCommand(z, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, t->pos);
-							break;
+					for (const auto & u : Observation()->GetUnits(Unit::Alliance::Self, [&](const auto & u) {
+						return u.unit_type == UNIT_TYPEID::PROTOSS_ADEPT
+							&& Distance2D(u.pos, z->pos) < 5.0f
+							;
+					})) {
+						AvailableAbilities abilities = Query()->GetAbilitiesForUnit(z);
+						for (const auto& ability : abilities.abilities) {
+							if (ability.ability_id == ABILITY_ID::EFFECT_ADEPTPHASESHIFT) {
+								Actions()->UnitCommand(u, ABILITY_ID::EFFECT_ADEPTPHASESHIFT, u->pos);
+								break;
+							}
 						}
 					}
 				}
@@ -1647,6 +1679,12 @@ public:
 			}
 			return;
 		}
+		if (unit->shield <= 10 && unit->health <= 30 || any_of(unit->buffs.begin(), unit->buffs.end(), [](const auto & b) {return b == BUFF_ID::LOCKON; })) {
+			evade(unit, proxy);
+			//std::cout << "ouch run away" << std::endl;
+			return;
+		}
+
 		switch (unit->unit_type.ToType()) {
 		case UNIT_TYPEID::PROTOSS_NEXUS: {			
 
@@ -1762,7 +1800,12 @@ private:
 			auto ta = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL));
 			if (!ta.empty()) {
 				auto & f = *ta.begin();
-				doUpgrade(f, ABILITY_ID::RESEARCH_CHARGE);
+				if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) > CountUnitType(UNIT_TYPEID::PROTOSS_ADEPT)) {
+					doUpgrade(f, ABILITY_ID::RESEARCH_CHARGE);
+				}
+				else {
+					doUpgrade(f, ABILITY_ID::RESEARCH_ADEPTRESONATINGGLAIVES);
+				}
 				chrono(f);
 			}			
 			auto forge = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_FORGE));
@@ -2013,7 +2056,7 @@ private:
 		const Unit * unit_to_build=nullptr;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if (minerals >= 400) {
+		if (minerals >= 400 || bob == nullptr) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			//auto it = find(probes.begin(), probes.end(), bob);
 			//if (it != probes.end()) {
@@ -2148,8 +2191,8 @@ private:
 				auto candidate = Point2D(unit_to_build->pos.x + rx * (8.0f + gws.size() * 2), unit_to_build->pos.y + ry * (8.0f + gws.size() * 2));
 				// see if a nasty spot is available close by
 				if (proxy != map.getPosition(MapTopology::ally, MapTopology::main)) {
-					std::vector<Point2D> targets = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(bob->pos));
-					sortByDistanceTo(targets, bob->pos);
+					std::vector<Point2D> targets = map.FindHardPointsInMinerals(map.FindNearestBaseIndex(unit_to_build->pos));
+					sortByDistanceTo(targets, unit_to_build->pos);
 					for (auto & p : targets) {
 						if (Distance2D(p, unit_to_build->pos) < 18.0f && placer.PlacementB(info, p,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON, p)) {
 							candidate = p;
@@ -2187,7 +2230,7 @@ private:
 							}
 						}
 
-						if (spaces > 3 && Query()->PathingDistance(bob, candidate) < 20) {
+						if (spaces > 3 && Query()->PathingDistance(unit_to_build, candidate) < 20) {
 							good = true;
 						}
 					}
@@ -2323,10 +2366,10 @@ private:
 			tobuild = ABILITY_ID::BUILD_FORGE;
 		} else if (gws > 0 && (isterran || needImmo) && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
 			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
-		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) == 0) {
-			tobuild = ABILITY_ID::BUILD_TWILIGHTCOUNCIL;
 		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) == 0) {
 			tobuild = ABILITY_ID::BUILD_ROBOTICSFACILITY;
+		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_TWILIGHTCOUNCIL) == 0) {
+			tobuild = ABILITY_ID::BUILD_TWILIGHTCOUNCIL;
 		} else {
 			if (gws >= 4 && (zeals < maxZeal && minerals < 500 && gas < 100)) {
 				return false;
@@ -2361,19 +2404,28 @@ private:
 			}
 		}
 		if (tobuild == ABILITY_ID::BUILD_GATEWAY && minerals < 150) {
+			minerals -= 150;
 			return false;
 		}
 		else if (tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE && minerals < 150) {
+			minerals -= 150;
 			return false;
 		}
 		else if (tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL && (minerals < 150 || gas < 100) ) {
+			minerals -= 150;
+			gas -= 100;
+			return false;
+		}
+		else if (tobuild == ABILITY_ID::BUILD_ROBOTICSBAY && (minerals < 150 || gas < 150)) {
+			minerals -= 150;
+			gas -= 150;
 			return false;
 		}
 
 		const Unit * builder;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400) ) {
+		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400 || bob == nullptr) ) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			auto it = find(probes.begin(), probes.end(), bob);
 			if (it != probes.end()) {
