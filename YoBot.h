@@ -716,6 +716,7 @@ public:
 				move = true;
 			}
 			if (move || att >= CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) || nmy.size() >= 8) {
+				bob = nullptr;
 				if (nexus != nullptr) {
 					proxy = nexus->pos;
 				}
@@ -752,9 +753,24 @@ public:
 				}
 			}
 		}
-		else if (unit->alliance == Unit::Alliance::Enemy && IsCommandStructure( unit->unit_type) ) {
-			if (Distance2D(target, unit->pos) < 20) {
+		else if (unit->alliance == Unit::Alliance::Enemy ) {
+			if (Distance2D(target, unit->pos) < 3.0f) {
 				baseRazed = true;
+				Units list;
+				for (auto & p : allEnemies()) {
+					auto & u = p.second;
+					if (IsBuilding(u->unit_type) && !u->is_flying) {
+						list.push_back(u);
+					}
+				}				
+				sortByDistanceTo(list, target);
+				if (list.empty()) {
+					target = proxy;
+				}
+				else {
+					target = list.front()->pos;
+				}
+
 			}
 		}
 	}
@@ -1172,17 +1188,42 @@ public:
 			}
 		}
 
-		if (minerals >= 100 && frame % 10 == 0) {
+		if (minerals >= 100 && frame % 6 == 0) {
 			// let each base have at least one pylon
 			for (auto & strat : harvesting.getChildren()) {
-				if (strat.getCurrentHarvesters() >= 17) {					
+				if (strat.getCurrentHarvesters() >= 16) {					
 					auto & pos = strat.getPylonPos();
-					if (placer.PlacementB(info,pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {
-						auto  p = FindNearestUnit(pos,probs);
-						Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
-						Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos,true);
-						harvesters.erase(p->tag);
-						minerals -= 100;
+					if (placer.PlacementB(info,pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {						
+						auto  p = FindNearestUnit(pos,probs, 400);
+						if (p != nullptr) {
+							Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
+							Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos, true);
+							harvesters.erase(p->tag);
+							minerals -= 100;
+						}
+					}
+				}
+			}
+		}
+		if (minerals >= 150 && frame % 6 == 0) {
+			// let each base have at least one pylon
+			for (auto & strat : harvesting.getChildren()) {
+				if (strat.getCurrentHarvesters() >= 18) {
+					auto & cann = Observation()->GetUnits(Unit::Alliance::Self, [&](const auto & u) { return u.unit_type == UNIT_TYPEID::PROTOSS_PHOTONCANNON && Distance2D(strat.getNexus()->pos, u.pos) < 7.0f; });
+					if (cann.size() == 0) {
+						for (auto & extra : { Point2D(2,0) , Point2D(0,2),Point2D(-2,0) , Point2D(0,-2), }) {
+							auto & pos = strat.getPylonPos() + extra;
+							if (placer.PlacementB(info, pos, 2) && Query()->Placement(ABILITY_ID::BUILD_PHOTONCANNON, pos)) {
+								auto  p = FindNearestUnit(pos, probs, 400);
+								if (p != nullptr) {
+									Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
+									Actions()->UnitCommand(p, ABILITY_ID::BUILD_PHOTONCANNON, pos, true);
+									harvesters.erase(p->tag);
+									minerals -= 150;
+									break;
+								}
+							}
+						}
 					}
 				}
 			}
@@ -1219,8 +1260,7 @@ public:
 				}
 				
 				if (unit->orders.size() == 0 && !YoActions()->isBusy(unit->tag)) {
-					if (Distance2D(unit->pos, target) < 15.0f) {
-						target = proxy;
+					if (Distance2D(unit->pos, target) < 15.0f) {						
 						Units list;
 						for (auto & p : allEnemies()) {
 							auto & u = p.second;
@@ -1585,9 +1625,10 @@ public:
 						
 			float attRange = getRange(z, Observation()->GetUnitTypeData());
 
-			auto enemies = FindEnemiesInRange(z->pos, attRange);
+			auto enemies = FindEnemiesInRange(z->pos, attRange+.05f);
 
 			// make sure there is no more than 60 degree turn to attack it
+			/*
 			const float length =attRange;
 			sc2::Point3D p1 = z->pos;			
 			p1.x += length * std::cos(z->facing);
@@ -1595,7 +1636,7 @@ public:
 			enemies.erase(
 				std::remove_if(enemies.begin(), enemies.end(), [p1, attRange](const auto & u) {  return Distance2D(u->pos, p1) > attRange + u->radius;  })
 				, enemies.end());
-
+				*/
 			if (!enemies.empty()) {
 				float max = 2000;
 				const Unit * t = nullptr;
@@ -1802,8 +1843,10 @@ private:
 				auto & f = *ta.begin();
 				if (CountUnitType(UNIT_TYPEID::PROTOSS_ZEALOT) > CountUnitType(UNIT_TYPEID::PROTOSS_ADEPT)) {
 					doUpgrade(f, ABILITY_ID::RESEARCH_CHARGE);
+					doUpgrade(f, ABILITY_ID::RESEARCH_ADEPTRESONATINGGLAIVES);
 				}
 				else {
+					doUpgrade(f, ABILITY_ID::RESEARCH_CHARGE);
 					doUpgrade(f, ABILITY_ID::RESEARCH_ADEPTRESONATINGGLAIVES);
 				}
 				chrono(f);
@@ -1825,7 +1868,7 @@ private:
 		//	chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_STALKER, 2, 125, 50);
 		for (auto r : info.player_info) {
 			if (r.race_requested == Terran) {
-				if (CountUnitType(UNIT_TYPEID::PROTOSS_ADEPT) <= 15)
+				if (CountUnitType(UNIT_TYPEID::PROTOSS_ADEPT) <= 8)
 					chronoBuild(UNIT_TYPEID::PROTOSS_GATEWAY, ABILITY_ID::TRAIN_ADEPT, 2, 100, 25);				
 				break;
 			}
@@ -2166,7 +2209,7 @@ private:
 			Units gws = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_GATEWAY));
 			if (gws.size() != 0 || needSupport) {
 				for (auto & gw : gws) {
-					if (gw->build_progress ==  1 && !gw->is_powered && ((! evading && Distance2D(gw->pos,bob->pos) < 20.0f) || (evading && Distance2D(gw->pos, bob->pos) < 8.0f))) {
+					if (gw->build_progress ==  1 && !gw->is_powered && ((! evading && Distance2D(gw->pos,unit_to_build->pos) < 20.0f) || (evading && Distance2D(gw->pos, unit_to_build->pos) < 8.0f))) {
 						
 						for (int i = 0; i < 30; i++) {
 							rx = GetRandomScalar();
@@ -2425,7 +2468,7 @@ private:
 		const Unit * builder;
 		// If a unit already is building a supply structure of this type, do nothing.
 		// Also get an scv to build the structure.
-		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400 || bob == nullptr) ) {
+		if ( (tobuild == ABILITY_ID::BUILD_FORGE || tobuild == ABILITY_ID::BUILD_CYBERNETICSCORE || tobuild == ABILITY_ID::BUILD_TWILIGHTCOUNCIL || minerals >= 400 || bob == nullptr || gws >= 3) ) {
 			Units probes = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_PROBE));
 			auto it = find(probes.begin(), probes.end(), bob);
 			if (it != probes.end()) {
