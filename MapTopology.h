@@ -30,6 +30,7 @@ class MapTopology
 	int height;
 public:
 	int ourBaseStartLocIndex;
+	int theirBaseStartLocIndex;
 	// raw cache for locations computed for expansions, indexed by expansion index
 	std::vector<sc2::Point3D> expansions;
 	std::vector<sc2::Units> resourcesPer;	
@@ -40,6 +41,8 @@ public:
 	// a pocket occurs when a base is reachable only by passing through your main
 	enum BaseType {main,nat,proxy,pocket};
 	enum Player {ally, enemy};
+	// after scouting on 4P map call this
+	void setEnemyMain(const sc2::Point2D & posScout, const sc2::ObservationInterface * obs);
 	// note asking for pocket will yield nat if no pocket found
 	const sc2::Point3D & getPosition(Player p, BaseType b) const;
 	int getExpansionIndex(Player p, BaseType b) const;	

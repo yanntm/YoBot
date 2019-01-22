@@ -167,14 +167,26 @@ void MapTopology::init(const sc2::ObservationInterface * initial, sc2::QueryInte
 	for (int i = 0; i < starts.size(); i++) {
 		if (DistanceSquared2D(starts[i], myStart) < 5.0f) {
 			ourBaseStartLocIndex = i;
+			break;
 		}
 	}
-
+	theirBaseStartLocIndex = ourBaseStartLocIndex == 0 ? 1 : 0;
+	
 #ifdef DEBUG
 	debugMap(debug,initial);
 	if (debug != nullptr) debug->SendDebug();
 #endif // DEBUG
 
+}
+
+void  MapTopology::setEnemyMain(const sc2::Point2D & posScout, const sc2::ObservationInterface * obs) {
+	const auto & starts = obs->GetGameInfo().start_locations;
+	for (int i = 0; i < starts.size(); i++) {
+		if (DistanceSquared2D(starts[i], posScout) < 5.0f) {
+			theirBaseStartLocIndex = i;
+			break;
+		}
+	}	
 }
 
 bool MapTopology::hasPockets() const {
@@ -186,7 +198,7 @@ const sc2::Point3D & MapTopology::getPosition(Player p, BaseType b) const {
 	return expansions[id];
 }
 int MapTopology::getExpansionIndex(Player p, BaseType b) const {
-	int id = p == ally ? ourBaseStartLocIndex : (ourBaseStartLocIndex == 0) ? 1 : 0;
+	int id = p == ally ? ourBaseStartLocIndex : theirBaseStartLocIndex;
 
 	switch (b) {
 	case nat: return naturalBases[id];
