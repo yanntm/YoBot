@@ -11,7 +11,11 @@ class CombatStrategy
 		Skirmishing, // do damage if not threatened/ high shields
 		Cornering // pursuing an enemy
 	};
-
+	enum CombatPolicy {
+		Attack,
+		Defend
+	};
+	CombatPolicy policy;
 	sc2::Units squad;
 	sc2::Point2D target;
 	sc2::Point2D rally;
@@ -20,8 +24,9 @@ class CombatStrategy
 	// i.e. maintenance operations on combatStates
 	bool updateRoster(const sc2::Units & current);
 public :
-	void initialize(const sc2::ObservationInterface * obs);
-	void OnStep(const sc2::ObservationInterface * obs, sc2::YoAction * actions);	
+	void initialize(const sc2::ObservationInterface * obs, const sc2::Point2D & itarget, const sc2::Point2D & irally);
+	void OnStep(const sc2::ObservationInterface * obs, sc2::YoAction * actions);
+	void setPolicy(CombatPolicy pol, const sc2::Point2D & pos);
 #ifdef DEBUG
 	void PrintDebug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs) const;
 #endif

@@ -37,8 +37,11 @@ bool CombatStrategy::updateRoster(const sc2::Units & current)
 	return rosterChange;
 }
 
-void CombatStrategy::initialize(const sc2::ObservationInterface * obs)
+void CombatStrategy::initialize(const sc2::ObservationInterface * obs,const sc2::Point2D & itarget, const sc2::Point2D & irally)
 {
+	target = itarget;
+	rally = irally;
+	policy = Defend;
 	for (const auto u : obs->GetUnits(Unit::Alliance::Self, [](const auto & u) { return u.is_alive &&  IsArmyUnitType(u.unit_type); })) {
 		soldierStates[u->tag] = CombatState::Regrouping;
 	}
@@ -47,6 +50,25 @@ void CombatStrategy::initialize(const sc2::ObservationInterface * obs)
 void CombatStrategy::OnStep(const sc2::ObservationInterface * obs, sc2::YoAction * actions)
 {
 	auto all = obs->GetUnits(Unit::Alliance::Self, [](const auto & u) { return u.is_alive &&  IsArmyUnitType(u.unit_type); });
-	updateRoster(all);
+	bool changed = updateRoster(all);
+	// update state of each unit
+
+	// set targets as necessary
+
+	// act on current state
+	for (auto z : squad) {
+		auto & e = soldierStates[z->tag];
+		if (actions->isBusy(z->tag)) {
+			continue;
+		}
+		switch (e) {
+		case Attacking:
+			actions->UnitCommand(z, ABILITY_ID::ATTACK, target);
+			break;
+		case Regrouping:
+			actions->UnitCommand(z, ABILITY_ID::ATTACK, rally);
+			break;
+		}
+	}
 }
 
