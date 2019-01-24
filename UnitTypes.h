@@ -25,4 +25,6 @@ namespace sc2util {
 	bool isChronoed(const sc2::Unit * unit);
 
 	float getRange(const sc2::Unit *z, const sc2::UnitTypes & types);
+
+	sc2::Race getRace(sc2::UNIT_TYPEID type);
 }
