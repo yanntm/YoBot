@@ -608,9 +608,11 @@ void MultiHarvesterStrategy::assignTargets(const Units & workers)
 	int ind = 0;
 	vector<int> ideals;
 	for (auto & h : perBase) {
-		nexi.push_back(h.nexus);
-		index.insert({ h.nexus->tag,ind++ });
-		ideals.push_back(h.getIdealHarvesters());
+		if (h.nexus->build_progress == 1) {
+			nexi.push_back(h.nexus);
+			index.insert({ h.nexus->tag,ind++ });
+			ideals.push_back(h.getIdealHarvesters());
+		}
 	}
 	std::function<int(const Unit *)> func = [&](const Unit *u) {
 		if (u == nullptr) {
