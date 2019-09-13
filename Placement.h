@@ -14,7 +14,8 @@ public :
 	bool PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const;
 	bool PlacementB(const sc2::GameInfo & info, const sc2::Point2D & point, int footprint) const;
 	// higher level API : find a list of locations for a building, at or around a given location
-	// specify additional constraints to sort the result	
+	// specify additional constraints to sort the result
+	std::vector<sc2::Point2D> Placements(const sc2::GameInfo & info, const sc2::Point2D & center, int footprint, int maxdistance) const;
 
 	// updating the grid
 	// add (b=true) or remove (b=false) a building of footprint size, at given position (center of the unit/unit pos)

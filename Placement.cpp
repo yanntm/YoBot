@@ -2,6 +2,7 @@
 #include "sc2api/sc2_interfaces.h"
 #include "Pathing.h"
 #include "ImageUtil.h"
+#include "DistUtil.h"
 
 using namespace std;
 using namespace sc2;
@@ -66,6 +67,21 @@ bool BuildingPlacer::PlacementB(const sc2::GameInfo & info, const sc2::Point2D &
 		}
 	}
 	return true;
+}
+
+std::vector<sc2::Point2D> BuildingPlacer::Placements(const sc2::GameInfo & info, const sc2::Point2D & center, int footprint, int maxdistance) const
+{
+	std::vector<sc2::Point2D> res;
+	for (int x = -maxdistance + 1; x < maxdistance; x++) {
+		for (int y = -maxdistance + 1; y < maxdistance; y++) {
+			auto p = center + Point2D(x, y);
+			if (PlacementB(info, p, footprint)) {
+				res.emplace_back(p);
+			}
+		}
+	}
+	sc2util::sortByDistanceTo(res, center);
+	return res;
 }
 
 bool BuildingPlacer::setBuildingAt(sc2::GameInfo & info, const sc2::Point2D & pos, int foot, bool b)
