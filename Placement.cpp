@@ -7,6 +7,7 @@ using namespace std;
 using namespace sc2;
 using namespace sc2util;
 
+#ifdef DEBUG
 void BuildingPlacer::debug(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs, const GameInfo & info)
 {
 	// kinda costly, disabled by default
@@ -33,7 +34,7 @@ void BuildingPlacer::debug(sc2::DebugInterface * debug, const sc2::ObservationIn
 		debug->DebugTextOut("Reserved :" + to_string(res));
 	}
 }
-
+#endif
 
 bool BuildingPlacer::Placement(const sc2::GameInfo & info, const sc2::Point2D & point) const
 {
@@ -41,18 +42,9 @@ bool BuildingPlacer::Placement(const sc2::GameInfo & info, const sc2::Point2D & 
 }
 
 
-bool  BuildingPlacer::PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & pointI) const
+bool  BuildingPlacer::PlacementI(const sc2::GameInfo & info, const sc2::Point2DI & p) const
 {
-	if (pointI.x < 0 || pointI.x >= width || pointI.y < 0 || pointI.y >= height)
-	{
-		return false;
-	}
-	if (reserved[pointI.y*width + pointI.x]) {
-		return false;
-	}
-	unsigned char encodedPlacement = info.placement_grid.data[pointI.x + ((height - 1) - pointI.y) * width];
-	bool decodedPlacement = encodedPlacement == 255 ? true : false;
-	return decodedPlacement;
+	return ! reserved[p.y*width + p.x] &&  isSet(info, info.placement_grid, p);
 }
 
 bool BuildingPlacer::PlacementB(const sc2::GameInfo & info, const sc2::Point2D & point, int footprint) const
