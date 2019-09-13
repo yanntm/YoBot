@@ -54,7 +54,9 @@ public:
 	const std::vector<sc2::Point2D> & FindHardPointsInMinerals(int expansionIndex) const;
 	// call this at game start to build up the info
 	void init(const sc2::ObservationInterface * initial, sc2::QueryInterface * query, sc2::DebugInterface * debug=nullptr);
+#ifdef DEBUG
 	// call this to see what the topology thinks in debug mode
 	void debugMap(sc2::DebugInterface * debug, const sc2::ObservationInterface * obs);
 	void debugPath(const std::vector<sc2::Point2DI> path, sc2::DebugInterface * debug,const sc2::ObservationInterface *obs);
+#endif
 };
