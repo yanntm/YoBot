@@ -128,6 +128,8 @@ public:
 		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::main));
 		placer.reserve(map.getExpansionIndex(MapTopology::ally, MapTopology::nat));
 		placer.reserveCliffSensitive(map.FindNearestBaseIndex(proxy),Observation(),info);
+		//placer.debug(Debug(),Observation(),Observation()->GetGameInfo());
+		//Debug()->SendDebug();
 	}
 
 	virtual void OnUnitCreated(const Unit* unit) final {
@@ -215,9 +217,14 @@ public:
 			return;
 			//std::cout << "ouch run away" << std::endl;
 		}
-
-		if (IsArmyUnitType(unit->unit_type) && ! YoActions()->isBusy(unit->tag)) {
+		if (IsArmyUnitType(unit->unit_type) && !YoActions()->isBusy(unit->tag)) {
 			auto targets = FindEnemiesInRange(unit->pos, 15);
+			auto friendlies = FindFriendliesInRange(unit->pos, 15);
+			remove_if(friendlies.begin(), friendlies.end(), [](auto u) { return !IsArmyUnitType(u->unit_type); });
+			if (unit->unit_type != UNIT_TYPEID::PROTOSS_ZEALOT && targets.size() >= friendlies.size()-3) {
+				evade(unit, proxy);
+				return;
+			}
 
 			bool isToss = true;
 			for (auto r : info.player_info) {
@@ -310,10 +317,16 @@ public:
 		else if (unit->unit_type == UNIT_TYPEID::PROTOSS_ADEPTPHASESHIFT) {
 			auto targets = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
 				return IsArmyUnitType(u.unit_type) && !u.is_flying && Distance2D(u.pos, unit->pos) < 15.0f; });
+			auto friendlies = Observation()->GetUnits(Unit::Alliance::Self, [&](const Unit& u) {
+				return IsArmyUnitType(u.unit_type) && Distance2D(u.pos, unit->pos) < 15.0f; });
+			if (targets.size() >= friendlies.size() - 3) {
+				evade(unit, proxy);
+				return;
+			}
 			auto work = Observation()->GetUnits(Unit::Alliance::Enemy, [&](const Unit& u) {
 				return IsWorkerType(u.unit_type) && Distance2D(u.pos, unit->pos) < 20.0f; });
 			if (work.size() >= 3) {
-				Point3D cog;
+				sc2::Point3D cog;
 				for (auto & w : work) {
 					cog += w->pos;
 				}
@@ -321,8 +334,9 @@ public:
 				auto baseindex = map.FindNearestBaseIndex(cog);
 				if (Distance2D(map.expansions[baseindex], cog) < 10.0f) {
 					if (!map.FindHardPointsInMinerals(baseindex).empty()) {
-						auto & p = map.FindHardPointsInMinerals(baseindex)[0];
-						cog = Point3D(p.x, p.y, 0);
+						auto & hp = map.FindHardPointsInMinerals(baseindex);
+						auto & p = hp[unit->tag%hp.size()];
+						cog = sc2::Point3D(p.x, p.y, 0);
 					}
 				}
 				Actions()->UnitCommand(unit, ABILITY_ID::SMART, cog);
@@ -814,9 +828,10 @@ public:
 		needCannons = true;
 		
 		frame++;
-
+		
 #ifdef DEBUG
 		{
+			placer.debug(Debug(), Observation(), Observation()->GetGameInfo());
 
 			map.debugMap(Debug(), Observation());
 			const auto & obs = Observation();
@@ -1195,9 +1210,8 @@ public:
 					auto & pos = strat.getPylonPos();
 					if (placer.PlacementB(info,pos,2) && Query()->Placement(ABILITY_ID::BUILD_PYLON,pos)) {						
 						auto  p = FindNearestUnit(pos,probs, 400);
-						if (p != nullptr) {
-							Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
-							Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos, true);
+						if (p != nullptr) {							
+							Actions()->UnitCommand(p, ABILITY_ID::BUILD_PYLON, pos);
 							harvesters.erase(p->tag);
 							minerals -= 100;
 						}
@@ -1216,7 +1230,7 @@ public:
 							if (placer.PlacementB(info, pos, 2) && Query()->Placement(ABILITY_ID::BUILD_PHOTONCANNON, pos)) {
 								auto  p = FindNearestUnit(pos, probs, 400);
 								if (p != nullptr) {
-									Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
+									//Actions()->UnitCommand(p, ABILITY_ID::MOVE, pos);
 									Actions()->UnitCommand(p, ABILITY_ID::BUILD_PHOTONCANNON, pos, true);
 									harvesters.erase(p->tag);
 									minerals -= 150;
@@ -1379,7 +1393,7 @@ public:
 						auto g = FindNearestVespeneGeyser(nexus->pos, allass);
 						if (!probes.empty() && g != nullptr && Distance2D(nexus->pos,g->pos) < 12.0f) {
 							auto p = chooseClosest(g, probes);
-							harvesters.erase(p->tag);
+							harvesters.erase(p->tag);							
 							auto min = FindNearestMineralPatch(p->pos);
 							Actions()->UnitCommand(p, ABILITY_ID::BUILD_ASSIMILATOR, g);
 							Actions()->UnitCommand(p, ABILITY_ID::HARVEST_GATHER, min, true);
@@ -1466,6 +1480,7 @@ public:
 		}
 #ifdef DEBUG
 		harvesting.PrintDebug(Debug(),Observation());
+		Debug()->SendDebug();
 #endif
 
 	}
@@ -2407,7 +2422,7 @@ private:
 		ABILITY_ID tobuild = ABILITY_ID::BUILD_GATEWAY;
 		if (needCannons && CountUnitType(UNIT_TYPEID::PROTOSS_FORGE) == 0 && gates.size() >= 3) {
 			tobuild = ABILITY_ID::BUILD_FORGE;
-		} else if (gws > 0 && (isterran || needImmo) && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
+		} else if (gws > 1 && (isterran || needImmo) && CountUnitType(UNIT_TYPEID::PROTOSS_CYBERNETICSCORE) == 0) {
 			tobuild = ABILITY_ID::BUILD_CYBERNETICSCORE;
 		} else if (needImmo && CountUnitType(UNIT_TYPEID::PROTOSS_ROBOTICSFACILITY) == 0) {
 			tobuild = ABILITY_ID::BUILD_ROBOTICSFACILITY;
