@@ -102,8 +102,8 @@
     <LibraryPath>C:\Users\Yann\source\repos\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\Yann\source\repos\s2client-api\project\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\Yann\source\repos\s2client-api\project\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='TechTree|x64'">
     <IncludePath>C:\Users\Yann\source\repos\s2client-api\project\include;$(IncludePath)</IncludePath>

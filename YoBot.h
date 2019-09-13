@@ -1162,7 +1162,7 @@ public:
 				}
 			}
 		}
-		if (harvesting.getCurrentHarvesters() >= harvesting.getIdealHarvesters() && Observation()->GetFoodArmy() >= Observation()->GetFoodWorkers() / 3 ) {
+		if (harvesting.getCurrentHarvesters() >= harvesting.getIdealHarvesters() && Observation()->GetFoodArmy() >= Observation()->GetFoodWorkers() / 4 ) {
 			if (! buildingNexus) {
 				auto nexi = Observation()->GetUnits(Unit::Alliance::Self, IsUnit(UNIT_TYPEID::PROTOSS_NEXUS));
 				if (none_of(nexi.begin(), nexi.end(), [](auto & n) { return n->build_progress < 1.0f; })
@@ -1251,7 +1251,7 @@ public:
 		}
 		*/
 
-		if (minerals >= 100 && frame % 3 == 0) {
+		if (minerals >= 100 && frame % 6 == 0) {
 			// let each base have at least one pylon
 			for (auto & strat : harvesting.getChildren()) {
 				if (strat.getCurrentHarvesters() >= 16) {					

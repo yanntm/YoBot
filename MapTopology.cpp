@@ -275,6 +275,7 @@ const std::vector<sc2::Point2D>& MapTopology::FindHardPointsInMinerals(int expan
 	return hardPointsPer[expansionIndex];
 }
 
+#ifdef DEBUG
 void MapTopology::debugPath(const std::vector<sc2::Point2DI> path, DebugInterface * debug, const ObservationInterface *obs)
 {
 	if (debug == nullptr) {
@@ -319,7 +320,7 @@ void MapTopology::debugMap(DebugInterface * debug, const ObservationInterface * 
 		debug->DebugTextOut("proxy" + std::to_string(startloc), expansions[proxyBases[startloc]] + Point3D(0, 2, .5), Colors::Green);
 	}
 }
-
+#endif
 
 static const float PI = 3.1415927f;
 // Directly taken from sc2_search.cc of sc2api
