@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -184,6 +184,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ArmyStrategy.cpp" />
     <ClCompile Include="BOBuilder.cpp" />
     <ClCompile Include="Boo.cpp" />
     <ClCompile Include="BuildOrder.cpp" />
@@ -203,6 +204,8 @@
     <ClCompile Include="YoBotMain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ArmyStrategy.h" />
+    <ClInclude Include="BoBot.h" />
     <ClInclude Include="BOBuilder.h" />
     <ClInclude Include="Boo.h" />
     <ClInclude Include="DistUtil.h" />
