@@ -10,13 +10,20 @@ namespace sc2util {
 
 	bool isSet(const sc2::GameInfo & info, const sc2::ImageData & grid, const sc2::Point2DI & pointI)
 	{
-		if (pointI.x < 0 || pointI.x >= info.width || pointI.y < 0 || pointI.y >= info.width)
+		if (pointI.x < 0 || pointI.x >= grid.width || pointI.y < 0 || pointI.y >= grid.height)
 		{
 			return false;
 		}
-		unsigned char encodedPlacement = grid.data[pointI.x + ((info.height - 1) - pointI.y) * info.width];
-		bool decodedPlacement = encodedPlacement == 255 ? false : true;
-		return decodedPlacement;
+		if (grid.bits_per_pixel == 1) {
+			div_t idx = div(pointI.x + pointI.y * grid.width, 8);
+			bool dst = (grid.data[idx.quot] >> (7 - idx.rem)) & 1;
+			return dst;
+		}
+		else {
+			// Image data is stored with an upper left origin.			
+			char dst = grid.data[pointI.x + pointI.y * grid.width];
+			return dst;
+		}
 	}
 
 	bool set(sc2::GameInfo & info, sc2::ImageData & grid, const sc2::Point2D & point, bool b)
@@ -27,14 +34,26 @@ namespace sc2util {
 
 	bool set(sc2::GameInfo & info, sc2::ImageData & grid, const sc2::Point2DI & pointI, bool b)
 	{
-		if (pointI.x < 0 || pointI.x >= info.width || pointI.y < 0 || pointI.y >= info.width)
+		if (pointI.x < 0 || pointI.x >= grid.width || pointI.y < 0 || pointI.y >= grid.height)
 		{
 			return false;
 		}
-		unsigned char encodedPlacement = b ? 0 : 255;
-		auto index = pointI.x + ((info.height - 1) - pointI.y) * info.width;
-		grid.data[index] = encodedPlacement;
-		return true;
+		if (grid.bits_per_pixel == 1) {
+			div_t idx = div(pointI.x + pointI.y * grid.width, 8);
+			char mask = 1 << (7 - idx.rem);
+			if (b) {
+				grid.data[idx.quot] |= mask; 
+			}
+			else {
+				grid.data[idx.quot] ^= ~mask;				
+			}
+			return true;
+		}
+		else {
+			// Image data is stored with an upper left origin.			
+			grid.data[pointI.x + pointI.y * grid.width] = b;
+			return true;
+		}
 	}
 
 	bool setBuildingAt(sc2::GameInfo & info, sc2::ImageData & grid, const sc2::Point2D & pos, int footprint, bool b)
